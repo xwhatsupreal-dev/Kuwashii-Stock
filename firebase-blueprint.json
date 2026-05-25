@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "StockItem": {
+      "title": "StockItem",
+      "description": "An item in the AOT Revolution stock catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique slug identifier of the item" },
+        "name": { "type": "string", "description": "Title/Name of the item" },
+        "category": { "type": "string", "description": "Category of the stock item" },
+        "rarity": { "type": "string", "description": "The color grading rarity tag" },
+        "price": { "type": "number", "description": "Price in Thai Baht" },
+        "quantity": { "type": "number", "description": "The quantity left in storage" },
+        "description": { "type": "string", "description": "Special specifications or instructions of the item" },
+        "imageUrl": { "type": "string", "description": "HTTP image asset URL or base64 upload" },
+        "isPinned": { "type": "boolean", "description": "Flag to mark card pinned at top" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp indicating when item was saved" }
+      },
+      "required": ["id", "name", "category", "rarity", "price", "quantity", "description", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "items/{itemId}": {
+      "schema": "StockItem",
+      "description": "The database storage location for available catalog stock items"
+    }
+  }
+}

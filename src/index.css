@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* Custom glow borders and custom aesthetics */
+.mythic-glow {
+  box-shadow: 0 0 15px -1px rgba(239, 68, 68, 0.35), 0 0 8px -1px rgba(239, 68, 68, 0.2);
+}
+.legendary-glow {
+  box-shadow: 0 0 15px -1px rgba(245, 158, 11, 0.35), 0 0 8px -1px rgba(245, 158, 11, 0.2);
+}
+.epic-glow {
+  box-shadow: 0 0 12px -1px rgba(168, 85, 247, 0.3), 0 0 6px -1px rgba(168, 85, 247, 0.15);
+}
+.rare-glow {
+  box-shadow: 0 0 12px -1px rgba(59, 130, 246, 0.3), 0 0 6px -1px rgba(59, 130, 246, 0.15);
+}
+.common-glow {
+  box-shadow: 0 0 8px -1px rgba(107, 114, 128, 0.15);
+}
+
+/* Custom scrollbar to match sleek theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0e12;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2230;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2e334a;
+}
+

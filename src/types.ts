@@ -1,0 +1,16 @@
+export interface StockItem {
+  id: string;
+  name: string;
+  category: 'Serum' | 'Bloodline' | 'Equipment' | 'Artifact' | 'Scroll' | 'Other';
+  rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
+  quantity: number;
+  price: number; // in Thai Baht
+  description: string;
+  imageUrl?: string;
+  isPinned?: boolean;
+  updatedAt: string;
+}
+
+export type CategoryFilter = 'all' | StockItem['category'];
+export type RarityFilter = 'all' | StockItem['rarity'];
+export type StockStatusFilter = 'all' | 'in-stock' | 'low-stock' | 'out-of-stock';
