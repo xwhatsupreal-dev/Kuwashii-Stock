@@ -1,7 +1,7 @@
 export interface StockItem {
   id: string;
   name: string;
-  category: 'Serum' | 'Bloodline' | 'Equipment' | 'Artifact' | 'Scroll' | 'Perk' | 'Other';
+  category: 'Serum' | 'Bloodline' | 'Equipment' | 'Artifact' | 'Scroll/Key' | 'Perk' | 'Other';
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
   quantity: number;
   price: number; // in Thai Baht

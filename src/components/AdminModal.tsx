@@ -234,7 +234,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 เลือกหมวดหมู่ไอเทม (Item Category) <span className="text-zinc-500 font-normal">(คลิกเลือกโดยตรง)</span>
               </label>
               <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-1.5 p-2 rounded-xl bg-zinc-950/80 border border-zinc-900/40">
-                {(['Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll', 'Perk', 'Other'] as const).map((cat) => {
+                {(['Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll/Key', 'Perk', 'Other'] as const).map((cat) => {
                   const isActive = category === cat;
                   return (
                     <button
@@ -252,7 +252,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         {cat === 'Bloodline' && '🧬'}
                         {cat === 'Equipment' && '⚔️'}
                         {cat === 'Artifact' && '🏺'}
-                        {cat === 'Scroll' && '📜'}
+                        {cat === 'Scroll/Key' && '📜'}
                         {cat === 'Perk' && '⚡'}
                         {cat === 'Other' && '📦'}
                       </span>
