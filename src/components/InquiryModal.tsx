@@ -28,6 +28,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
 ━━━━━━━━━━━━━━━━━━━━━━
 • สินค้า: ${item.name} (${item.category})
 • ระดับความหายาก: ${item.rarity}
+• คำอธิบาย: ${item.description || '-'}
 • จำนวน: ${quantity} ชิ้น
 • ราคารวม: ฿${totalPrice.toLocaleString()} บาท (ชิ้นละ ฿${item.price.toLocaleString()} บาท)
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -95,7 +96,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
                 <ShoppingCart className="w-8 h-8 text-zinc-600" />
               )}
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border ${getRarityBadgeStyle(item.rarity)}`}>
                   {item.rarity}
@@ -104,6 +105,11 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
               </div>
               <h4 className="font-display font-medium text-white text-base leading-tight">{item.name}</h4>
               <p className="font-mono text-sm font-bold text-amber-400 mt-1">฿{item.price.toLocaleString()} / ชิ้น</p>
+              {item.description && (
+                <p className="text-[11px] text-zinc-400 mt-2 bg-zinc-950/60 p-2 rounded-lg border border-zinc-800/45 leading-relaxed max-h-20 overflow-y-auto break-words font-sans">
+                  <strong className="text-zinc-300">คำอธิบาย:</strong> {item.description}
+                </p>
+              )}
             </div>
           </div>
 
