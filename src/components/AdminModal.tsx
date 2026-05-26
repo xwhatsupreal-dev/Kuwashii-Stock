@@ -244,6 +244,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   <option value="Equipment">Equipment (อุปกรณ์เท่ๆ)</option>
                   <option value="Artifact">Artifact (วัตถุโบราณ)</option>
                   <option value="Scroll">Scroll (ม้วนคำสาป/อำนวยพลัง)</option>
+                  <option value="Perk">Perk (ความสามารถพิเศษ)</option>
                   <option value="Other">Other (อื่นๆ)</option>
                 </select>
               </div>

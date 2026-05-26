@@ -649,7 +649,7 @@ export default function App() {
               หมวดหมู่ไอเทม (Item Categories)
             </span>
             <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-zinc-800">
-              {(['all', 'Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll', 'Other'] as const).map((cat) => (
+              {(['all', 'Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll', 'Perk', 'Other'] as const).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
