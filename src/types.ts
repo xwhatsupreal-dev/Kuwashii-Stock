@@ -8,6 +8,7 @@ export interface StockItem {
   description: string;
   imageUrl?: string;
   isPinned?: boolean;
+  isPopular?: boolean;
   updatedAt: string;
 }
 

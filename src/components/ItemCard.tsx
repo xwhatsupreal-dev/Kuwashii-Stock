@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Edit2, Trash2, ShieldAlert, BadgeInfo, Coins, Package, Clock, ShoppingBag, Pin } from 'lucide-react';
+import { Edit2, Trash2, ShieldAlert, BadgeInfo, Coins, Package, Clock, ShoppingBag, Pin, Flame } from 'lucide-react';
 import { StockItem } from '../types';
 
 interface ItemCardProps {
@@ -217,6 +217,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <span className={`w-1.5 h-1.5 rounded-full ${status.color.split(' ')[0]}`} />
             <span className="text-[9px] tracking-wide font-medium text-zinc-300">{status.label}</span>
           </div>
+
+          {/* Popular Tag */}
+          {item.isPopular && (
+            <div className="absolute top-2 right-2 bg-rose-500/90 text-white font-bold backdrop-blur-md px-2 py-0.5 rounded-md border border-rose-450/40 flex items-center gap-1 shadow-md shadow-rose-500/20">
+              <Flame className="w-3 h-3 fill-current text-white animate-pulse" />
+              <span className="text-[9px] tracking-wide">ยอดนิยม</span>
+            </div>
+          )}
         </div>
 
         {/* Typography */}

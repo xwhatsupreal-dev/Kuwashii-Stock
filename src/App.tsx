@@ -25,7 +25,8 @@ import {
   CheckCircle,
   Copy,
   Clock,
-  MessageCircle
+  MessageCircle,
+  Flame
 } from 'lucide-react';
 
 import { StockItem, CategoryFilter, RarityFilter, StockStatusFilter } from './types';
@@ -48,6 +49,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
   const [selectedRarity, setSelectedRarity] = useState<RarityFilter>('all');
   const [selectedStatus, setSelectedStatus] = useState<StockStatusFilter>('all');
+  const [showPopularOnly, setShowPopularOnly] = useState(false);
   const [sortBy, setSortBy] = useState<string>('rarity-desc');
 
   // Admin Authentications
@@ -359,7 +361,9 @@ export default function App() {
       matchesStatus = item.quantity === 0;
     }
 
-    return matchesSearch && matchesCategory && matchesRarity && matchesStatus;
+    const matchesPopular = !showPopularOnly || !!item.isPopular;
+
+    return matchesSearch && matchesCategory && matchesRarity && matchesStatus && matchesPopular;
   });
 
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -694,26 +698,45 @@ export default function App() {
               </div>
             </div>
 
-            {/* Availability status selectors */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">ความพร้อมคลัง (Stock Status)</span>
-              <div className="flex items-center gap-2">
-                {(['all', 'in-stock', 'low-stock', 'out-of-stock'] as const).map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setSelectedStatus(st)}
-                    className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                      selectedStatus === st
-                        ? 'bg-zinc-800 border-zinc-500 text-white'
-                        : 'bg-zinc-950 border-zinc-850 text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    {st === 'all' && 'ทั้งหมด'}
-                    {st === 'in-stock' && 'มีสินค้า (>5 ชิ้น)'}
-                    {st === 'low-stock' && 'ใกล้หมด (1-5 ชิ้น)'}
-                    {st === 'out-of-stock' && 'หมดชั่วคราว'}
-                  </button>
-                ))}
+            {/* Availability status selectors and Popular item filters */}
+            <div className="space-y-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block">ความพร้อมคลัง (Stock Status)</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['all', 'in-stock', 'low-stock', 'out-of-stock'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setSelectedStatus(st)}
+                      className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                        selectedStatus === st
+                          ? 'bg-zinc-800 border-zinc-500 text-white'
+                          : 'bg-zinc-950 border-zinc-850 text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {st === 'all' && 'ทั้งหมด'}
+                      {st === 'in-stock' && 'มีสินค้า (>5)'}
+                      {st === 'low-stock' && 'ใกล้หมด (1-5)'}
+                      {st === 'out-of-stock' && 'หมด'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Show Popular Only switch */}
+              <div className="space-y-2 sm:self-end">
+                <button
+                  type="button"
+                  onClick={() => setShowPopularOnly(!showPopularOnly)}
+                  className={`py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                    showPopularOnly
+                      ? 'bg-rose-500/15 border-rose-500 text-rose-450'
+                      : 'bg-zinc-950 border-zinc-850 text-zinc-500 hover:text-rose-400'
+                  }`}
+                >
+                  <Flame className={`w-3.5 h-3.5 ${showPopularOnly ? 'fill-current text-rose-450 animate-bounce' : 'text-zinc-500'}`} />
+                  <span>แสดงเฉพาะยอดนิยม</span>
+                </button>
               </div>
             </div>
 
@@ -789,13 +812,14 @@ export default function App() {
           <span>
             ผลการค้นหาและตัวกรองที่เลือกเจอทั้งหมด: <strong className="text-zinc-300 font-bold">{sortedItems.length}</strong> รายการสินค้า
           </span>
-          {(search || selectedCategory !== 'all' || selectedRarity !== 'all' || selectedStatus !== 'all') && (
+          {(search || selectedCategory !== 'all' || selectedRarity !== 'all' || selectedStatus !== 'all' || showPopularOnly) && (
             <button
               onClick={() => {
                 setSearch('');
                 setSelectedCategory('all');
                 setSelectedRarity('all');
                 setSelectedStatus('all');
+                setShowPopularOnly(false);
               }}
               className="text-amber-500 hover:text-amber-400 font-extrabold flex items-center gap-1 cursor-pointer"
             >

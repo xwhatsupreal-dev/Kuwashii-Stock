@@ -32,6 +32,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [price, setPrice] = useState(10);
   const [description, setDescription] = useState('');
   const [isPinned, setIsPinned] = useState(false);
+  const [isPopular, setIsPopular] = useState(false);
   
   const [imageType, setImageType] = useState<'url' | 'upload' | 'presets'>('url');
   const [imageUrl, setImageUrl] = useState('');
@@ -50,6 +51,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setPrice(editingItem.price);
       setDescription(editingItem.description);
       setIsPinned(!!editingItem.isPinned);
+      setIsPopular(!!editingItem.isPopular);
       
       const isBase64 = editingItem.imageUrl?.startsWith('data:image/');
       if (isBase64) {
@@ -70,6 +72,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setPrice(10);
       setDescription('');
       setIsPinned(false);
+      setIsPopular(false);
       setImageType('url');
       setImageUrl('');
       setUploadBase64('');
@@ -155,6 +158,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       description: description.trim(),
       imageUrl: finalImageUrl || undefined,
       isPinned,
+      isPopular,
     });
     
     onClose();
@@ -309,18 +313,33 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               />
             </div>
 
-            {/* Pin Switch */}
-            <div className="flex items-center gap-2.5 bg-zinc-900/40 p-3.5 rounded-xl border border-zinc-900">
-              <input
-                type="checkbox"
-                id="pin-checkbox"
-                checked={isPinned}
-                onChange={(e) => setIsPinned(e.target.checked)}
-                className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
-              />
-              <label htmlFor="pin-checkbox" className="text-xs font-bold text-zinc-300 cursor-pointer font-sans select-none flex items-center gap-2">
-                <span>📌 ปักหมุดไอเทมนี้ให้อยู่บนสุดเสมอ (Pin to Top)</span>
-              </label>
+            {/* Switches Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center gap-2.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/80">
+                <input
+                  type="checkbox"
+                  id="pin-checkbox"
+                  checked={isPinned}
+                  onChange={(e) => setIsPinned(e.target.checked)}
+                  className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                />
+                <label htmlFor="pin-checkbox" className="text-xs font-semibold text-zinc-350 cursor-pointer font-sans select-none flex items-center gap-1">
+                  <span>📌 ปักหมุดให้อยู่บนสุด</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2.5 bg-zinc-900/40 p-3 rounded-xl border border-zinc-900/80">
+                <input
+                  type="checkbox"
+                  id="popular-checkbox"
+                  checked={isPopular}
+                  onChange={(e) => setIsPopular(e.target.checked)}
+                  className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                />
+                <label htmlFor="popular-checkbox" className="text-xs font-semibold text-zinc-350 cursor-pointer font-sans select-none flex items-center gap-1.5">
+                  <span>🔥 สินค้ายอดนิยม (Popular)</span>
+                </label>
+              </div>
             </div>
 
             {/* Image Source selector options */}
