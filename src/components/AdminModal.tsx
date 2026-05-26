@@ -228,43 +228,57 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               )}
             </div>
 
-            {/* Category and Rarity row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans">
-                  หมวดหมู่ (Category)
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as StockItem['category'])}
-                  className="w-full bg-zinc-900 border border-zinc-800 text-zinc-200 px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
-                >
-                  <option value="Serum">Serum (เซรุ่มไททัน)</option>
-                  <option value="Bloodline">Bloodline (สายเลือด)</option>
-                  <option value="Equipment">Equipment (อุปกรณ์เท่ๆ)</option>
-                  <option value="Artifact">Artifact (วัตถุโบราณ)</option>
-                  <option value="Scroll">Scroll (ม้วนคำสาป/อำนวยพลัง)</option>
-                  <option value="Perk">Perk (ความสามารถพิเศษ)</option>
-                  <option value="Other">Other (อื่นๆ)</option>
-                </select>
+            {/* Category selection */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-2 font-sans">
+                เลือกหมวดหมู่ไอเทม (Item Category) <span className="text-zinc-500 font-normal">(คลิกเลือกโดยตรง)</span>
+              </label>
+              <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-1.5 p-2 rounded-xl bg-zinc-950/80 border border-zinc-900/40">
+                {(['Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll', 'Perk', 'Other'] as const).map((cat) => {
+                  const isActive = category === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                      className={`py-2 px-2.5 rounded-lg text-xs font-bold transition-all text-left flex items-center gap-1.5 border cursor-pointer select-none ${
+                        isActive
+                          ? 'bg-amber-500/15 border-amber-500/80 text-amber-400 font-extrabold shadow-sm shadow-amber-500/5'
+                          : 'bg-zinc-900/60 border-zinc-850 hover:border-zinc-700 text-zinc-400 hover:text-zinc-300'
+                      }`}
+                    >
+                      <span className="text-sm">
+                        {cat === 'Serum' && '🧪'}
+                        {cat === 'Bloodline' && '🧬'}
+                        {cat === 'Equipment' && '⚔️'}
+                        {cat === 'Artifact' && '🏺'}
+                        {cat === 'Scroll' && '📜'}
+                        {cat === 'Perk' && '⚡'}
+                        {cat === 'Other' && '📦'}
+                      </span>
+                      <span className="truncate">{cat}</span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans">
-                  ระดับความหายาก (Rarity)
-                </label>
-                <select
-                  value={rarity}
-                  onChange={(e) => setRarity(e.target.value as StockItem['rarity'])}
-                  className="w-full bg-zinc-900 border border-zinc-800 text-zinc-200 px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
-                >
-                  <option value="Mythic">🔴 Mythic (แดงเทพ)</option>
-                  <option value="Legendary">🟡 Legendary (ทองระดับตำนาน)</option>
-                  <option value="Epic">🟣 Epic (ม่วงมหาศาล)</option>
-                  <option value="Rare">🔵 Rare (ฟ้าหายาก)</option>
-                  <option value="Common">⚪ Common (เทาทั่วไป)</option>
-                </select>
-              </div>
+            {/* Rarity Select */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans">
+                ระดับความหายาก (Rarity)
+              </label>
+              <select
+                value={rarity}
+                onChange={(e) => setRarity(e.target.value as StockItem['rarity'])}
+                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-200 px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-sans"
+              >
+                <option value="Mythic">🔴 Mythic (แดงเทพ)</option>
+                <option value="Legendary">🟡 Legendary (ทองระดับตำนาน)</option>
+                <option value="Epic">🟣 Epic (ม่วงมหาศาล)</option>
+                <option value="Rare">🔵 Rare (ฟ้าหายาก)</option>
+                <option value="Common">⚪ Common (เทาทั่วไป)</option>
+              </select>
             </div>
 
             {/* Quantity and Price row */}

@@ -381,6 +381,16 @@ export default function App() {
       return bPinned - aPinned; // 1 comes before 0 (pinned first)
     }
 
+    // 2.5 Category Grouping: When viewing 'All' categories, group items of the same category together
+    if (selectedCategory === 'all') {
+      const categoryOrder = ['Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll', 'Perk', 'Other'];
+      const indexA = categoryOrder.indexOf(a.category);
+      const indexB = categoryOrder.indexOf(b.category);
+      if (indexA !== indexB) {
+        return indexA - indexB; // Keeps category order unified
+      }
+    }
+
     // 3. User sub-sort criteria
     switch (sortBy) {
       case 'name-asc':
