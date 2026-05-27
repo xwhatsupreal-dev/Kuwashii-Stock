@@ -72,6 +72,7 @@ export default function App() {
 
   // Floating notifications/toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [showIframeWarningModal, setShowIframeWarningModal] = useState(false);
 
   // --- Notifications Configuration ---
   const [notifConfig, setNotifConfig] = useState(() => {
@@ -258,6 +259,17 @@ export default function App() {
     }
     initStock();
     testFirestoreConnection();
+
+    // Register Service Worker for Mobile Notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => {
+          console.log('Service Worker registered with scope: ', reg.scope);
+        })
+        .catch((err) => {
+          console.warn('Service Worker registration failed: ', err);
+        });
+    }
   }, []);
 
   const saveItemsToStorage = (newItems: StockItem[]) => {
@@ -826,6 +838,12 @@ export default function App() {
                   if (val) {
                     playChime('success');
                     
+                    const isInIframe = window.self !== window.top;
+                    if (isInIframe) {
+                      setShowIframeWarningModal(true);
+                      return;
+                    }
+                    
                     if ('Notification' in window) {
                       showToast('เปิดระบบแจ้งเตือนคลัง: กรุณากด "อนุญาต" (Allow) หากมีป๊อปอัปสิทธิ์ระดับระบบเด้งขึ้นมา! 🔔', 'info');
                       try {
@@ -835,10 +853,26 @@ export default function App() {
                           const permission = await requestPromise;
                           if (permission === 'granted') {
                             showToast('เปิดใช้การแจ้งเตือนนอกบราวเซอร์สำเร็จแล้ว! ระบบจะแชร์ผลแม่นยำแม้พับหน้าจอ 🚀', 'success');
-                            new Notification('คลังสินค้า Live Alerts 🔔', {
-                              body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
-                              tag: 'aotr-welcome-alert'
-                            });
+                            
+                            if ('serviceWorker' in navigator) {
+                              navigator.serviceWorker.ready.then((reg) => {
+                                reg.showNotification('คลังสินค้า Live Alerts 🔔', {
+                                  body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
+                                  icon: '/favicon.ico',
+                                  tag: 'aotr-welcome-alert'
+                                });
+                              }).catch(() => {
+                                new Notification('คลังสินค้า Live Alerts 🔔', {
+                                  body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
+                                  tag: 'aotr-welcome-alert'
+                                });
+                              });
+                            } else {
+                              new Notification('คลังสินค้า Live Alerts 🔔', {
+                                body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
+                                tag: 'aotr-welcome-alert'
+                              });
+                            }
                           } else if (permission === 'denied') {
                             showToast('สิทธิ์ถูกปฏิเสธ บราวเซอร์จะเปลี่ยนมาใช้การเปิดเสียงเตือนและสิทธิ์ในบราวเซอร์แทน 💡', 'info');
                           }
@@ -923,7 +957,7 @@ export default function App() {
                 className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
               />
               <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyPopular ? 'text-amber-400 font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
-                ⭐ ตัวตึงยอดนิยม / ระดับความหายากสูง
+                ⭐ สินค้ายอดนิยม
               </span>
             </label>
           </div>
@@ -1528,6 +1562,91 @@ export default function App() {
         onSave={handleSaveItem}
         editingItem={editingItem}
       />
+
+      {/* OS Notification Iframe/Mobile Guidance Warning Modal */}
+      <AnimatePresence>
+        {showIframeWarningModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowIframeWarningModal(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative max-w-md w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl z-10"
+            >
+              <button
+                type="button"
+                className="absolute top-4 right-4 text-zinc-500 hover:text-white p-1 rounded-md hover:bg-zinc-900 transition-colors cursor-pointer"
+                onClick={() => setShowIframeWarningModal(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center space-y-3 mb-5">
+                <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-500">
+                  <Bell className="w-6 h-6 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="font-display text-base font-bold text-white">ต้องการรับการแจ้งเตือนภายนอกแอพใช่หรือไม่? 🔔</h3>
+                  <p className="text-xs text-zinc-400 mt-1">เพื่อให้ระบบสามารถแจ้งเตือนท่านได้แม้อยู่นอกบราวเซอร์หรือปิดแอปพลิเคชัน บราวเซอร์จำเป็นต้องได้รับความยินยอม "ให้สิทธิ์แจ้งเตือนระดับระบบ (OS Notification Permissions)"</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-xs text-zinc-400 leading-relaxed font-sans bg-zinc-900/40 p-4 rounded-xl border border-zinc-850/60 mb-5 text-left">
+                <p className="font-semibold text-zinc-300 flex items-center gap-1.5 border-b border-zinc-900 pb-1.5">
+                  💡 ปัญหาที่มักพบในมือถือ / กรอบรายงาน:
+                </p>
+                <ul className="space-y-2 list-disc list-inside">
+                  <li>
+                    <strong className="text-zinc-200">เมื่อเล่นในแอปมือถือ (เช่น LINE, Facebook Webview, iFrame พรีวิว):</strong> แอปเหล่านี้จะ <span className="text-amber-400">บล็อกการแสดงป๊อปอัปให้สิทธิ์</span> ทำให้ไม่มีขึ้นปุ่มให้อนุญาตสิทธิ์แจ้งเตือน
+                  </li>
+                  <li>
+                    <strong className="text-zinc-200">บน iOS Safari (iPhone / iPad):</strong> Apple บังคับให้ท่านต้องบันทึกเป็นเว็บโฮม <span className="text-emerald-400">"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</span> เป็นแอพ PWA ก่อน ป๊อปอัปขอสิทธิ์จึงจะปรากฏตัว
+                  </li>
+                  <li>
+                    <strong className="text-zinc-200">แก้ไขได้ทันที:</strong> แนะนำให้เปิดในแท็บแยกปกติ เพื่อเปิดระบบป๊อปอัปและสิทธิ์บริการพื้นหลังอย่างปลอดภัย
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIframeWarningModal(false);
+                    // Force state active so they still benefit from ambient UI
+                    showToast('เปิดใช้ระบบแจ้งเตือนแบบในระบบ (In-app Live alerts) เฝ้าหน้าจอนี้ได้ทันที! 🔊', 'success');
+                  }}
+                  className="w-full sm:w-1/2 py-2.5 px-4 rounded-xl border border-zinc-850 hover:bg-zinc-900 text-zinc-400 hover:text-white text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  ใช้แจ้งเตือนในตัว (In-App)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIframeWarningModal(false);
+                    try {
+                      window.open(window.location.href, '_blank');
+                    } catch (e) {
+                      showToast('ไม่สามารถเปิดหน้าต่างใหม่ได้โดยอัตโนมัติ กรุณาคัดลอกลิงก์เปิดเอง', 'error');
+                    }
+                  }}
+                  className="w-full sm:w-1/2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black border-amber-500 text-xs font-bold cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  เปิดหน้านอกแท็บใหม่ 🚀
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
