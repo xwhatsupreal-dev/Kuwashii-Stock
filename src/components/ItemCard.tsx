@@ -11,6 +11,7 @@ interface ItemCardProps {
   onQuickQuantityChange: (id: string, delta: number) => void;
   onInquire: (item: StockItem) => void;
   onTogglePin: (id: string) => void;
+  onShareToAI?: (item: StockItem) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({
@@ -21,6 +22,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onQuickQuantityChange,
   onInquire,
   onTogglePin,
+  onShareToAI,
 }) => {
   const getRarityColors = (rarity: StockItem['rarity']) => {
     switch (rarity) {
@@ -416,7 +418,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             </div>
           </div>
         ) : (
-          <div className="mt-2">
+          <div className="mt-2 space-y-1.5">
             <button
               type="button"
               onClick={() => onInquire(item)}
@@ -430,6 +432,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             >
               <ShoppingBag className="w-3 h-3" />
               <span>{item.quantity === 0 ? 'สินค้าหมดคลัง' : 'สนใจซื้อ / สอบถามสต๊อก'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onShareToAI && onShareToAI(item)}
+              className="w-full py-1.5 px-3 rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5 border border-purple-500/20 bg-purple-950/20 hover:bg-purple-900/30 text-purple-300 hover:text-purple-250 cursor-pointer active:scale-[0.98]"
+              id={`btn-share-ai-${item.id}`}
+            >
+              <Sparkles className="w-3 h-3 text-purple-400 fill-current animate-pulse" />
+              <span>คุยกับ AI เกี่ยวกับชิ้นนี้ 🔮</span>
             </button>
           </div>
         )}

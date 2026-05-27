@@ -72,183 +72,162 @@ export default function App() {
 
   // Floating notifications/toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
-  const [showIframeWarningModal, setShowIframeWarningModal] = useState(false);
 
-  // --- Notifications Configuration ---
-  const [notifConfig, setNotifConfig] = useState(() => {
-    const saved = localStorage.getItem('AOTR_NOTIF_CONFIG_V1');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use default fallback
-      }
-    }
-    return {
-      enabled: false,        // ปิดการแจ้งเตือนเป็นค่าเริ่มต้นตามที่ผู้ใช้ร้องขอ
-      notifyNewStock: true,  // สต็อกเพิ่มใหม่
-      notifyLowStock: true,  // ใกล้หมด
-      notifyPopular: true,   // ยอดนิยม
-      playAlertSound: true,  // เล่นเสียงแจ้งเตือน
-    };
-  });
-
-  const saveNotifConfig = (newConfig: typeof notifConfig) => {
-    setNotifConfig(newConfig);
-    localStorage.setItem('AOTR_NOTIF_CONFIG_V1', JSON.stringify(newConfig));
-  };
-
+  // Sound chime utility generator
   const playChime = (type: 'success' | 'warning' | 'info') => {
-    if (!notifConfig.playAlertSound) return;
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-
-      if (type === 'success') {
-        osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
-        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.45);
-      } else if (type === 'warning') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-        osc.frequency.setValueAtTime(392, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.35);
-      } else {
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.10, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.35);
-      }
+      
+      const freqs = { success: 523.25, warning: 329.63, info: 440.00 };
+      osc.frequency.setValueAtTime(freqs[type] || 440, ctx.currentTime);
+      gain.gain.setValueAtTime(0.02, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.18);
     } catch (e) {
-      // ignore context auto play warning
+      console.warn("Audio Context beep error:", e);
     }
   };
 
-  const sendSystemNotification = (title: string, body: string, iconUrl?: string) => {
-    if (!notifConfig.enabled) return;
+  // --- AI Chat Assistant States & Handlers ---
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'model'; text: string }[]>([
+    {
+      role: 'model',
+      text: 'สวัสดีครับ! ยินดีต้อนรับสู่ **Kuwashii El AI Shop Assistant** 🔮\n\nผมเป็นผู้ช่วยอัจฉริยะประจำร้าน Kuwashii El ท่านสามารถพิมพ์ถามข้อมูลราคา, สต๊อกคงเหลือ, ความน่าใช้ หรือวิเคราะห์ประสิทธิภาพการคอมโบไอเทมต่าง ๆ ได้ทันที และพิเศษยิ่งกว่านั้น! ท่านสามารถคลิกปุ่ม **"คุยกับ AI เกี่ยวกับชิ้นนี้ 🔮"** ที่ตัวสินค้าด่านล่างเพื่อส่งข้อมูลตรงให้ผมช่วยประเมินความคุ้มค่าและความเทพของสายเลือดหรือเซรั่มตัวนั้น ๆ ได้ทันทีเลยครับ!'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatSharedItem, setChatSharedItem] = useState<StockItem | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleShareToAI = (item: StockItem) => {
+    setChatSharedItem(item);
+    setChatInput(`ช่วยวิเคราะห์ความเทพ ประโยชน์ และความน่าซื้อของ ${item.name} (ระดับความหายาก: ${item.rarity}) ให้หน่อยครับว่าเอาไปใช้โรลเพลย์หรือทำคอมโบได้ดีแค่ไหน? ✨`);
+    showToast(`แชร์ข้อมูลสินค้า "${item.name}" ไปยัง AI Chat เรียบร้อยแล้ว! 🔮`, 'success');
     
-    // In-app visual backup
-    showToast(`${title} - ${body}`, 'info');
-
-    // System Native OS desktop notifications (works even when user is on another window or tab minimized)
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(title, {
-          body,
-          icon: iconUrl || undefined,
-          tag: 'aotr-stock-alert',
-        });
-      } catch (e) {
-        console.warn("Browser native Notification API error:", e);
+    // Scroll smoothly to the AI Chatbox section
+    setTimeout(() => {
+      const chatSection = document.getElementById('ai-chat-section');
+      if (chatSection) {
+        chatSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }
+    }, 100);
   };
 
-  const prevItemsRef = useRef<StockItem[]>([]);
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatLoading) return;
 
-  useEffect(() => {
-    // If notifications are disabled, keep current state matched to prevent alerting storm as soon as user enables it
-    if (!notifConfig.enabled) {
-      prevItemsRef.current = items;
-      return;
+    const userMsg = chatInput;
+    setChatInput('');
+    setIsChatLoading(true);
+
+    const updatedMessages = [...chatMessages, { role: 'user' as const, text: userMsg }];
+    setChatMessages(updatedMessages);
+
+    // Auto-scroll chat box container to bottom smoothly, without scrolling the main browser page
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 60);
+
+    try {
+      const apiHistory = chatMessages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      }));
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMsg,
+          history: apiHistory,
+          items: items.map(item => ({
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            rarity: item.rarity,
+            quantity: item.quantity,
+            price: item.price,
+            description: item.description || "",
+            isPopular: item.isPopular
+          })),
+          sharedItem: chatSharedItem ? {
+            id: chatSharedItem.id,
+            name: chatSharedItem.name,
+            category: chatSharedItem.category,
+            rarity: chatSharedItem.rarity,
+            quantity: chatSharedItem.quantity,
+            price: chatSharedItem.price,
+            description: chatSharedItem.description || "",
+            isPopular: chatSharedItem.isPopular
+          } : null
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'ระบบประมวลผลคำตอบขัดข้องชั่วคราว');
+      }
+
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'model', text: data.answer }]);
+    } catch (err: any) {
+      console.error(err);
+      setChatMessages(prev => [
+        ...prev,
+        { role: 'model', text: `❌ **เกิดข้อผิดพลาด:** ${err.message || 'ไม่สามารถติดต่อเซิร์ฟเวอร์ปัญญาประดิษฐ์ในขณะนี้ กรุณาลองใหม่อีกครั้ง'}` }
+      ]);
+      showToast('เชื่อมต่อ AI ไม่สำเร็จ', 'error');
+    } finally {
+      setIsChatLoading(false);
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTo({
+            top: chatContainerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 60);
     }
-
-    // Skip alerting during cold-start or initial load
-    if (prevItemsRef.current.length === 0) {
-      prevItemsRef.current = items;
-      return;
-    }
-
-    // Inspect each item comparing to previous version
-    items.forEach((newItem) => {
-      const oldItem = prevItemsRef.current.find((it) => it.id === newItem.id);
-
-      if (!oldItem) {
-        // CASE 1: Brand new item registered in database
-        if (notifConfig.notifyNewStock) {
-          sendSystemNotification(
-            '📦 สินค้าใหม่เข้าคลัง!',
-            `เพิ่ม "${newItem.name}" (${newItem.category}) เข้าสู่ระบบจำหน่ายเรียบร้อย!`,
-            newItem.imageUrl
-          );
-        }
-        return;
-      }
-
-      // CASE 2: Quantities changed
-      if (oldItem.quantity !== newItem.quantity) {
-        const isIncreased = newItem.quantity > oldItem.quantity;
-        const isDecreased = newItem.quantity < oldItem.quantity;
-
-        // restocked
-        if (isIncreased && notifConfig.notifyNewStock) {
-          sendSystemNotification(
-            '📥 อัปเดตสต๊อกเพิ่ม!',
-            `"${newItem.name}" (${newItem.category}) เพิ่งถูกเติมสินค้าเข้าไปเป็น ${newItem.quantity} ชุดพร้อมส่ง!`,
-            newItem.imageUrl
-          );
-        }
-
-        // low stock warning (between 1 and 5)
-        if (isDecreased && newItem.quantity <= 5 && newItem.quantity > 0 && notifConfig.notifyLowStock) {
-          sendSystemNotification(
-            '⚠️ ของใกล้หมดด่วน!',
-            `"${newItem.name}" ถูกจองออเดอร์ ตอนนี้เหลือสต๊อกเพียง ${newItem.quantity} ชุดในระบบ!`,
-            newItem.imageUrl
-          );
-        }
-
-        // completely depleted
-        if (isDecreased && newItem.quantity === 0 && notifConfig.notifyLowStock) {
-          sendSystemNotification(
-            '❌ ของหมดคลังชั่วคราว!',
-            `"${newItem.name}" สินค้าหมดเกลี้ยงสต๊อกแล้ว 0 ชุด ทักให้แอดมินเติมด่วน!`,
-            newItem.imageUrl
-          );
-        }
-      }
-
-      // CASE 3: Registered as trending high rarity target
-      const oldIsPopular = !!oldItem.isPinned || !!oldItem.isPopular || oldItem.rarity === 'Mythic' || oldItem.rarity === 'Legendary';
-      const newIsPopular = !!newItem.isPinned || !!newItem.isPopular || newItem.rarity === 'Mythic' || newItem.rarity === 'Legendary';
-      if (!oldIsPopular && newIsPopular && notifConfig.notifyPopular) {
-        sendSystemNotification(
-          '⭐ แนะนำไอเทมแรร์เด่น!',
-          `"${newItem.name}" (${newItem.rarity}) ได้รับความนิยมสูง/ติดปักหมุดแนะนำใหม่ มอนิเตอร์ด่วน!`,
-          newItem.imageUrl
-        );
-      }
-    });
-
-    prevItemsRef.current = items;
-  }, [items, notifConfig]);
+  };
 
   // Load and save localStorage / Firebase
   useEffect(() => {
     async function initStock() {
+      // Helper to map obsolete "Equipment" category to new "Skin" category
+      const migrateItems = (itemsList: any[]): StockItem[] => {
+        return itemsList.map(item => {
+          if (item && item.category === 'Equipment') {
+            return { ...item, category: 'Skin' };
+          }
+          return item as StockItem;
+        });
+      };
+
       try {
         const dbItems = await getFirebaseItems(DEFAULT_PRESETS);
-        setItems(dbItems || []);
+        setItems(migrateItems(dbItems || []));
       } catch (e) {
         console.error("Firebase fetch error, loading fallback presets:", e);
         const saved = localStorage.getItem('AOTR_STOCK_ITEMS');
         if (saved) {
           try {
-            setItems(JSON.parse(saved));
+            const parsed = JSON.parse(saved);
+            setItems(migrateItems(Array.isArray(parsed) ? parsed : []));
           } catch (err) {
             setItems(DEFAULT_PRESETS);
           }
@@ -259,17 +238,6 @@ export default function App() {
     }
     initStock();
     testFirestoreConnection();
-
-    // Register Service Worker for Mobile Notifications
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((reg) => {
-          console.log('Service Worker registered with scope: ', reg.scope);
-        })
-        .catch((err) => {
-          console.warn('Service Worker registration failed: ', err);
-        });
-    }
   }, []);
 
   const saveItemsToStorage = (newItems: StockItem[]) => {
@@ -574,7 +542,7 @@ export default function App() {
 
     // 2.5 Category Grouping: When viewing 'All' categories, group items of the same category together
     if (selectedCategory === 'all') {
-      const categoryOrder = ['Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll/Key', 'Perk', 'Other'];
+      const categoryOrder = ['Serum', 'Bloodline', 'Skin', 'Artifact', 'Scroll/Key', 'Perk', 'Other'];
       const indexA = categoryOrder.indexOf(a.category);
       const indexB = categoryOrder.indexOf(b.category);
       if (indexA !== indexB) {
@@ -795,325 +763,254 @@ export default function App() {
           </div>
         </div>
 
-        {/* Live Notification Center */}
-        <section className="mb-8 bg-zinc-900/10 border border-zinc-900 rounded-2xl overflow-hidden shadow-xl">
+        {/* Kuwashii AI Shop Assistant */}
+        <section 
+          id="ai-chat-section"
+          className="mb-8 bg-gradient-to-br from-purple-950/15 via-zinc-950/90 to-zinc-950/95 border border-purple-500/20 rounded-2xl overflow-hidden shadow-2xl relative"
+        >
+          {/* Subtle top light flare */}
+          <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-purple-500/30 to-transparent pointer-events-none" />
+
           {/* Header Bar */}
-          <div className="bg-zinc-950/80 px-4 py-3.5 border-b border-zinc-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-zinc-950/80 px-4 py-4 border-b border-zinc-900/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className={`p-1.5 rounded-xl border transition-all ${notifConfig.enabled ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
-                {notifConfig.enabled ? <BellRing className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              <div className="p-2 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-400 shadow-lg shadow-purple-500/5 flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 animate-pulse" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <span>กระดิ่งแจ้งเตือนคลังสินค้า (Stock Live Alerts)</span>
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>ผู้ช่วยตอบแชทอัจฉริยะ (Kuwashii AI Assistant)</span>
+                  <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-[9px] font-bold text-purple-300 tracking-wider uppercase border border-purple-500/30">
+                    Live GPT
+                  </span>
                 </h2>
-                <p className="text-[10px] text-zinc-500">มอนิเตอร์ระดับความจุสต็อก, การเติมสินค้าและยอดฮิตสินค้าแรร์ในระบบ</p>
+                <p className="text-[10px] text-zinc-500">
+                  ถามวิเคราะห์คอมโบไอเทม, สอบถามราคาในสต็อกปัจจุบัน หรือวิเคราะห์เซรั่ม/บลัดไลน์ของตัวละครได้เรียลไทม์
+                </p>
               </div>
             </div>
 
-            {/* Quick Master Switches */}
-            <div className="flex items-center gap-2.5 self-start sm:self-auto">
-              {/* Sound indicator switch */}
-              <button
-                type="button"
-                onClick={() => saveNotifConfig({ ...notifConfig, playAlertSound: !notifConfig.playAlertSound })}
-                className={`p-1.5 rounded-lg border text-[10px] items-center gap-1.5 cursor-pointer transition-all flex ${
-                  notifConfig.playAlertSound 
-                    ? 'bg-zinc-900 border-zinc-850 text-zinc-350 hover:bg-zinc-850' 
-                    : 'bg-zinc-950 border-zinc-900 text-zinc-600'
-                }`}
-                title={notifConfig.playAlertSound ? "ปิดเสียงแจ้งเตือน" : "เปิดเสียงแจ้งเตือน"}
-              >
-                {notifConfig.playAlertSound ? <Volume2 className="w-3.5 h-3.5 text-amber-500" /> : <VolumeX className="w-3.5 h-3.5" />}
-                <span className="hidden xs:inline">{notifConfig.playAlertSound ? 'เปิดเอฟเฟกต์เสียง' : 'ปิดเสียงแจ้งเตือน'}</span>
-              </button>
-
-              {/* Master push notification switch */}
-              <button
-                type="button"
-                onClick={async () => {
-                  const val = !notifConfig.enabled;
-                  saveNotifConfig({ ...notifConfig, enabled: val });
-                  
-                  if (val) {
-                    playChime('success');
-                    
-                    const isInIframe = window.self !== window.top;
-                    if (isInIframe) {
-                      setShowIframeWarningModal(true);
-                      return;
-                    }
-                    
-                    if ('Notification' in window) {
-                      showToast('เปิดระบบแจ้งเตือนคลัง: กรุณากด "อนุญาต" (Allow) หากมีป๊อปอัปสิทธิ์ระดับระบบเด้งขึ้นมา! 🔔', 'info');
-                      try {
-                        // Resilient request permission (Promise or Callback approach)
-                        const requestPromise = Notification.requestPermission();
-                        if (requestPromise && typeof requestPromise.then === 'function') {
-                          const permission = await requestPromise;
-                          if (permission === 'granted') {
-                            showToast('เปิดใช้การแจ้งเตือนนอกบราวเซอร์สำเร็จแล้ว! ระบบจะแชร์ผลแม่นยำแม้พับหน้าจอ 🚀', 'success');
-                            
-                            if ('serviceWorker' in navigator) {
-                              navigator.serviceWorker.ready.then((reg) => {
-                                reg.showNotification('คลังสินค้า Live Alerts 🔔', {
-                                  body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
-                                  icon: '/favicon.ico',
-                                  tag: 'aotr-welcome-alert'
-                                });
-                              }).catch(() => {
-                                new Notification('คลังสินค้า Live Alerts 🔔', {
-                                  body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
-                                  tag: 'aotr-welcome-alert'
-                                });
-                              });
-                            } else {
-                              new Notification('คลังสินค้า Live Alerts 🔔', {
-                                body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
-                                tag: 'aotr-welcome-alert'
-                              });
-                            }
-                          } else if (permission === 'denied') {
-                            showToast('สิทธิ์ถูกปฏิเสธ บราวเซอร์จะเปลี่ยนมาใช้การเปิดเสียงเตือนและสิทธิ์ในบราวเซอร์แทน 💡', 'info');
-                          }
-                        } else {
-                          // Callback fallback for older iOS Safari/Android WebViews
-                          Notification.requestPermission((permission) => {
-                            if (permission === 'granted') {
-                              showToast('เปิดระบบสิทธิ์แจ้งเตือนสำหรับมือถือ/บราวเซอร์สำเร็จแล้ว! 🚀', 'success');
-                            }
-                          });
-                        }
-                      } catch (err) {
-                        console.warn("Notification request permission error:", err);
-                        // Fallback message
-                        showToast('เปิดการควบคุมแจ้งเตือนผ่านเสียงและป๊อปอัปแบบแมนนวลเสร็จสิ้น 🎵', 'success');
-                      }
-                    } else {
-                      // Native notifications not supported (iOS Safari outside PWA or inside LINE, Facebook webviews)
-                      showToast('เปิดโหมดแจ้งเตือนสำรอง: มีเสียงเอฟเฟกต์และกล่องรายงานแบบไลฟ์สตรีม 🔊', 'success');
-                    }
-                  } else {
-                    showToast('ปิดระบบเตือนประคองแบบเรียลไทม์เรียบร้อย', 'info');
+            {/* Clear Conversation Trigger */}
+            <button
+              type="button"
+              onClick={() => {
+                setChatMessages([
+                  {
+                    role: 'model',
+                    text: 'รีเซ็ตห้องสนทนาเรียบร้อย! ✨ ต้องการถามคำถามอะไรต่อ บอกมาได้เลยครับ ยินดีให้บริการเสมียนร้าน!'
                   }
+                ]);
+                setChatSharedItem(null);
+                showToast('ล้างประวัติการสนทนาเรียบร้อย');
+              }}
+              className="py-1 px-3 sm:py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200 text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3 text-zinc-500" />
+              <span>เริ่มใหม่</span>
+            </button>
+          </div>
+
+          {/* Active Context / Shared Item Banner if selected */}
+          {chatSharedItem && (
+            <div className="bg-gradient-to-r from-purple-950/50 via-zinc-950 to-purple-950/20 border-b border-purple-500/15 py-2.5 px-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500 animate-ping shrink-0" />
+                <span className="text-[10px] text-zinc-400">
+                  แชร์สินค้าให้ AI แล้ว: 
+                </span>
+                <span className="bg-purple-500/15 text-purple-300 font-bold px-2 py-0.5 rounded text-[10px] border border-purple-500/25 flex items-center gap-1.5">
+                  📁 {chatSharedItem.name} ({chatSharedItem.category}) — ฿{chatSharedItem.price.toLocaleString()}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setChatSharedItem(null);
+                  showToast('ยกเลิกการแชร์สินค้าพิเศษเรียบร้อย');
                 }}
-                className={`py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 border cursor-pointer flex items-center gap-1.5 ${
-                  notifConfig.enabled
-                    ? 'bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 font-extrabold shadow-md shadow-emerald-950/25'
-                    : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-white'
-                }`}
+                className="text-zinc-500 hover:text-zinc-300 text-[10px] font-bold py-0.5 px-2 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 rounded-md transition-all cursor-pointer"
               >
-                <div className={`w-2 h-2 rounded-full ${notifConfig.enabled ? 'bg-black animate-ping' : 'bg-zinc-600'}`} />
-                <span>{notifConfig.enabled ? 'เปิดบริการแจ้งเตือน' : 'ปิดการแจ้งเตือน'}</span>
+                ยกเลิกการแชร์ ✖
               </button>
-            </div>
-          </div>
-
-          {/* Sub-Filters / Settings Switch Center */}
-          <div className="bg-zinc-950/30 px-4 py-3 border-b border-zinc-900 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-zinc-400">
-            <span className="font-semibold text-zinc-500 font-sans flex items-center gap-1"><Settings className="w-3 h-3" /> ตั้งค่าแจ้งเตือนฟิลเตอร์:</span>
-            
-            <label className="flex items-center gap-2 cursor-pointer group select-none">
-              <input
-                type="checkbox"
-                disabled={!notifConfig.enabled}
-                checked={notifConfig.notifyNewStock}
-                onChange={(e) => {
-                  saveNotifConfig({ ...notifConfig, notifyNewStock: e.target.checked });
-                  if (e.target.checked) playChime('info');
-                }}
-                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
-              />
-              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyNewStock ? 'text-zinc-200 font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
-                📦 สต็อกเพิ่มใหม่ (Fully Restocked)
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer group select-none">
-              <input
-                type="checkbox"
-                disabled={!notifConfig.enabled}
-                checked={notifConfig.notifyLowStock}
-                onChange={(e) => {
-                  saveNotifConfig({ ...notifConfig, notifyLowStock: e.target.checked });
-                  if (e.target.checked) playChime('warning');
-                }}
-                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
-              />
-              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyLowStock ? 'text-white font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
-                ⚠️ สต็อกใกล้หมด (⚠️ ต่ำกว่า 5 ชิ้น)
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer group select-none">
-              <input
-                type="checkbox"
-                disabled={!notifConfig.enabled}
-                checked={notifConfig.notifyPopular}
-                onChange={(e) => {
-                  saveNotifConfig({ ...notifConfig, notifyPopular: e.target.checked });
-                  if (e.target.checked) playChime('info');
-                }}
-                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
-              />
-              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyPopular ? 'text-amber-400 font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
-                ⭐ สินค้ายอดนิยม
-              </span>
-            </label>
-          </div>
-
-          {/* Mobile Web & WebView Helper Info Banner */}
-          {notifConfig.enabled && (
-            <div className="bg-zinc-950/45 px-4 py-2 text-[10px] text-zinc-450 font-sans border-b border-zinc-900/40 flex items-center gap-2">
-              <span className="text-amber-500 animate-pulse shrink-0">💡</span>
-              <span>
-                <strong>แจ้งเตือนบนมือถือ/แท็บเล็ต:</strong> หากไม่พบป๊อปอัปให้กดอนุญาต (จำกัดบน iOS/LINE/FB) หน้าเว็บจะชดเชยให้ด้วย <strong className="text-zinc-300">เสียงแจ้งเตือน (Chime) และประดับกล่องบับเบิ้ลสดด้านบน</strong> ให้อัตโนมัติเมื่อท่านเปิดหน้าจอนี้ค้างไว้!
-              </span>
             </div>
           )}
 
-          {/* Active Alerts List Container representation */}
-          <div className="p-4 bg-zinc-950/20 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
-            {!notifConfig.enabled ? (
-              <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center justify-center gap-2 font-sans">
-                <BellOff className="w-7 h-7 text-zinc-700 block" />
-                <p className="font-semibold text-zinc-400">ปิดการทำงานของศูนย์แจ้งเตือนเรียลไทม์ไว้</p>
-                <p className="text-[10px] text-zinc-600">คุณสามารถปรับสไลด์หรือเปิดใช้งานแจ้งเตือนที่ปุ่ม "เปิดบริการแจ้งเตือน" เพื่อเฝ้าติดตามอีกครั้ง</p>
-              </div>
-            ) : (() => {
-              // Dynamically scan items to build active alerts based on rules
-              const activeAlerts: {
-                id: string;
-                itemId: string;
-                type: 'new-stock' | 'low-stock' | 'popular';
-                title: string;
-                message: string;
-                item: StockItem;
-              }[] = [];
-
-              items.forEach((item) => {
-                // Low stock alerting: quantity between 1 and 5
-                const isLow = item.quantity > 0 && item.quantity <= 5;
-                if (isLow && notifConfig.notifyLowStock) {
-                  activeAlerts.push({
-                    id: `alert-low-${item.id}`,
-                    itemId: item.id,
-                    type: 'low-stock',
-                    title: 'คลังใกล้หมด!',
-                    message: `⚠️ ด่วน! "${item.name}" เหลือคลังในระบบเพียง ${item.quantity} ชิ้นสุดท้ายเท่านั้น!`,
-                    item,
-                  });
-                }
-
-                // New restock alerting: quantity is full or fully capped
-                const isNew = item.quantity > 0 && item.initialQuantity !== undefined && item.quantity >= item.initialQuantity;
-                if (isNew && notifConfig.notifyNewStock) {
-                  activeAlerts.push({
-                    id: `alert-new-${item.id}`,
-                    itemId: item.id,
-                    type: 'new-stock',
-                    title: 'สต็อกเติมเพิ่มใหม่!',
-                    message: `📦 สำรองเต็มร้อย! "${item.name}" ได้รับการเติมสต็อกพร้อมส่งสูงสุดแล้ว (${item.quantity} ชุด)`,
-                    item,
-                  });
-                }
-
-                // Popularity alerting: includes Pinned, Popular stats, or very high end rarity
-                const isPub = !!item.isPinned || !!item.isPopular || item.rarity === 'Mythic' || item.rarity === 'Legendary';
-                if (isPub && notifConfig.notifyPopular) {
-                  // Safeguard: only add if not already marked low stock to keep dashboard fresh
-                  if (!activeAlerts.some(a => a.id === `alert-low-${item.id}`)) {
-                    activeAlerts.push({
-                      id: `alert-pub-${item.id}`,
-                      itemId: item.id,
-                      type: 'popular',
-                      title: 'ไอเทมแรร์ยอดนิยม!',
-                      message: `⭐ ของดีระดับแชมเปี้ยน! "${item.name}" (${item.rarity}) มียอดขายสูงสุด สต๊อกตอนนี้: ${item.quantity} ชิ้น`,
-                      item,
-                    });
-                  }
-                }
-              });
-
-              if (activeAlerts.length === 0) {
+          {/* Chat Window frame */}
+          <div className="p-4 sm:p-5">
+            {/* Scrollable conversation box */}
+            <div ref={chatContainerRef} className="bg-zinc-950/70 border border-zinc-900/60 rounded-xl p-4 h-80 overflow-y-auto space-y-4 mb-3.5 backdrop-blur shadow-inner">
+              {chatMessages.map((msg, idx) => {
+                const isUser = msg.role === 'user';
                 return (
-                  <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center justify-center gap-1.5 font-sans select-none">
-                    <Sparkles className="w-4 h-4 text-amber-500/30 animate-pulse block" />
-                    <p className="font-semibold text-zinc-400">คลังเซฟตี้เรียบร้อย ไม่มีสต๊อกติดสัญญาณเสด็จในขณะนี้</p>
-                    <p className="text-[10px] text-zinc-650">เมื่อระดับของคลังไอเทมเปลี่ยนแปลง อลาร์มความเสี่ยงจะปรากฏขึ้นที่แผงควบคุมนี้ทันที</p>
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}
+                  >
+                    {/* Character Avatar */}
+                    <div 
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border text-xs font-bold leading-none ${
+                        isUser 
+                          ? 'bg-zinc-900 border-zinc-800 text-zinc-350' 
+                          : 'bg-gradient-to-br from-purple-600 to-indigo-600 border-purple-500/40 text-white shadow-md shadow-purple-500/15'
+                      }`}
+                    >
+                      {isUser ? 'U' : 'AI'}
+                    </div>
+
+                    {/* Chat Bubble card */}
+                    <div className="flex-1 max-w-[85%]">
+                      {/* Sub text label */}
+                      <div className={`text-[9px] font-mono text-zinc-600 mb-1 ${isUser ? 'text-right' : ''}`}>
+                        {isUser ? 'ผู้ใช้' : 'Kuwashii AI Shop Assistant'}
+                      </div>
+
+                      {/* Content bubble */}
+                      <div 
+                        className={`p-3 rounded-2xl ${
+                          isUser 
+                            ? 'bg-indigo-950/40 border border-indigo-505/20 rounded-tr-none text-zinc-200' 
+                            : 'bg-gradient-to-r from-zinc-900 to-zinc-900/80 border border-zinc-800/85 rounded-tl-none shadow-md'
+                        }`}
+                      >
+                        {/* Render simple formatting */}
+                        {(() => {
+                          return msg.text.split('\n').map((line, lIdx) => {
+                            const isBullet = line.trim().startsWith('- ') || line.trim().startsWith('* ');
+                            let cleanLine = line;
+                            if (isBullet) {
+                              cleanLine = line.replace(/^[\s-*\s]+/, '');
+                            }
+
+                            // Parse bold elements **text**
+                            const parts = [];
+                            let lastIndex = 0;
+                            const boldRegex = /\*\*([^*]+)\*\*/g;
+                            let match;
+
+                            while ((match = boldRegex.exec(cleanLine)) !== null) {
+                              if (match.index > lastIndex) {
+                                parts.push(cleanLine.substring(lastIndex, match.index));
+                              }
+                              parts.push(
+                                <strong key={match.index} className="text-amber-400 font-extrabold font-sans">
+                                  {match[1]}
+                                </strong>
+                              );
+                              lastIndex = boldRegex.lastIndex;
+                            }
+
+                            if (lastIndex < cleanLine.length) {
+                              parts.push(cleanLine.substring(lastIndex));
+                            }
+
+                            const finalElement = parts.length > 0 ? parts : cleanLine;
+
+                            if (isBullet) {
+                              return (
+                                <div key={lIdx} className="flex items-start gap-1.5 ml-2 mr-1 my-1 font-sans text-xs text-zinc-300 leading-relaxed">
+                                  <span className="text-purple-400 shrink-0 mt-1.5 text-[8px]">◆</span>
+                                  <span>{finalElement}</span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <p key={lIdx} className="text-xs text-zinc-300 leading-relaxed font-sans mb-1.5">
+                                {finalElement}
+                              </p>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 );
-              }
+              })}
 
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {activeAlerts.map((alt) => {
-                    let typeClass = '';
-                    let dotColor = '';
-
-                    if (alt.type === 'low-stock') {
-                      typeClass = 'bg-red-500/5 hover:bg-red-500/10 border-red-950/40 text-red-300';
-                      dotColor = '#ef4444';
-                    } else if (alt.type === 'new-stock') {
-                      typeClass = 'bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-950/40 text-emerald-300';
-                      dotColor = '#10b981';
-                    } else {
-                      typeClass = 'bg-amber-500/5 hover:bg-amber-500/10 border-amber-950/30 text-amber-300';
-                      dotColor = '#f59e0b';
-                    }
-
-                    return (
-                      <motion.div
-                        key={alt.id}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${typeClass}`}
-                      >
-                        {/* Avatar Item miniature preview */}
-                        <div className="w-9 h-9 bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
-                          {alt.item.imageUrl ? (
-                            <img src={alt.item.imageUrl} alt={alt.item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-                          ) : (
-                            <Package className="w-4 h-4 text-zinc-600" />
-                          )}
-                        </div>
-
-                        {/* Title and Message */}
-                        <div className="flex-1 min-w-0 pr-1">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full animate-ping shrink-0" style={{ backgroundColor: dotColor }} />
-                            <span className="font-sans text-[9px] font-black uppercase tracking-wider">{alt.title}</span>
-                          </div>
-                          <p className="text-[10px] text-zinc-400 font-sans truncate leading-normal" title={alt.message}>
-                            {alt.message}
-                          </p>
-                        </div>
-
-                        {/* Fast Targeted Scrolling & Inquiry Trigger */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSearch(alt.item.name);
-                            const itemCardElement = document.getElementById(`item-card-${alt.item.id}`);
-                            if (itemCardElement) {
-                              itemCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              // Highlight block or open purchase dialog right away
-                              setInquiringItem(alt.item);
-                            } else {
-                              // secondary fallback
-                              window.scrollTo({ top: 450, behavior: 'smooth' });
-                            }
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900 text-white font-sans text-[10px] font-bold shrink-0 transition-transform active:scale-[0.97] cursor-pointer"
-                        >
-                          เล็งสั่งซื้อ 🎯
-                        </button>
-                      </motion.div>
-                    );
-                  })}
+              {/* Loader visual if call is ongoing */}
+              {isChatLoading && (
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border bg-gradient-to-br from-purple-600 to-indigo-600 border-purple-500/40 text-white shadow-md flex-shrink-0 animate-pulse">
+                    AI
+                  </div>
+                  <div className="flex-1 max-w-[85%]">
+                    <div className="text-[9px] font-mono text-zinc-650 mb-1">
+                      Kuwashii AI Shop Assistant ค้นหาคอมโบ...
+                    </div>
+                    <div className="bg-zinc-900 border border-zinc-850 p-3.5 rounded-2xl rounded-tl-none inline-flex items-center gap-2">
+                      <span className="flex gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce duration-300 delay-0"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce duration-300 delay-150"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce duration-300 delay-300"></span>
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-sans animate-pulse">กำลังสแกนโครงข่ายวิจัยคลังสินค้า...</span>
+                    </div>
+                  </div>
                 </div>
-              );
-            })()}
+              )}
+
+              {/* Anchor for automatic scroll down */}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat form control input and suggestions */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }} 
+              className="space-y-3"
+            >
+              {/* Message Typing Panel */}
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={
+                    chatSharedItem 
+                      ? `ถามเกี่ยวกับไอเทมวิเศษ "${chatSharedItem.name}"...`
+                      : "พิมพ์ข้อความแชทเพื่อถาม AI เช่น ราคา, สรรพคุณ หรือ แนะนำไอเทม..."
+                  }
+                  className="flex-1 bg-zinc-950 border border-zinc-850 py-3 px-4 rounded-xl text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-sans"
+                  disabled={isChatLoading}
+                  id="chat-user-input"
+                />
+                
+                <button
+                  type="submit"
+                  disabled={isChatLoading || !chatInput.trim()}
+                  className={`py-3 px-5 rounded-xl font-bold text-xs tracking-wide transition-all border shrink-0 flex items-center justify-center gap-1.5 cursor-pointer ${
+                    isChatLoading || !chatInput.trim()
+                      ? 'bg-zinc-900 border-zinc-850 text-zinc-600 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white border-purple-500 hover:border-purple-400 active:scale-[0.98] shadow-lg shadow-purple-600/10'
+                  }`}
+                  id="btn-send-chat"
+                >
+                  <span>ส่งข้อความ</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Micro Quick Suggestion Tags */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[10px]">
+                <span className="text-zinc-550 mr-1 font-medium select-none">หัวข้อแนะนำ:</span>
+                {[
+                  'มีสินค้าตัวไหนที่คนนิยมซื้อมากที่สุดในร้านบ้าง?',
+                  'อธิบายความแตกต่างระหว่าง Serum กับ Bloodline สไตล์เกมเมอร์',
+                  'ขอไอเทมแนะนำสำหรับปักหมุดประจำวันหน่อยครับ'
+                ].map((sug, sIdx) => (
+                  <button
+                    key={sIdx}
+                    type="button"
+                    onClick={() => setChatInput(sug)}
+                    className="px-2.5 py-1 rounded-md border border-zinc-900 bg-zinc-900/30 text-zinc-400 hover:text-white hover:border-zinc-850 hover:bg-zinc-900 transition-all text-[9.5px] cursor-pointer"
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
+            </form>
           </div>
         </section>
 
@@ -1172,7 +1069,7 @@ export default function App() {
               หมวดหมู่ไอเทม (Item Categories)
             </span>
             <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-zinc-800">
-              {(['all', 'Serum', 'Bloodline', 'Equipment', 'Artifact', 'Scroll/Key', 'Perk', 'Other'] as const).map((cat) => (
+              {(['all', 'Serum', 'Bloodline', 'Skin', 'Artifact', 'Scroll/Key', 'Perk', 'Other'] as const).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
@@ -1563,90 +1460,7 @@ export default function App() {
         editingItem={editingItem}
       />
 
-      {/* OS Notification Iframe/Mobile Guidance Warning Modal */}
-      <AnimatePresence>
-        {showIframeWarningModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowIframeWarningModal(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative max-w-md w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl z-10"
-            >
-              <button
-                type="button"
-                className="absolute top-4 right-4 text-zinc-500 hover:text-white p-1 rounded-md hover:bg-zinc-900 transition-colors cursor-pointer"
-                onClick={() => setShowIframeWarningModal(false)}
-              >
-                <X className="w-5 h-5" />
-              </button>
 
-              <div className="text-center space-y-3 mb-5">
-                <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-500">
-                  <Bell className="w-6 h-6 animate-bounce" />
-                </div>
-                <div>
-                  <h3 className="font-display text-base font-bold text-white">ต้องการรับการแจ้งเตือนภายนอกแอพใช่หรือไม่? 🔔</h3>
-                  <p className="text-xs text-zinc-400 mt-1">เพื่อให้ระบบสามารถแจ้งเตือนท่านได้แม้อยู่นอกบราวเซอร์หรือปิดแอปพลิเคชัน บราวเซอร์จำเป็นต้องได้รับความยินยอม "ให้สิทธิ์แจ้งเตือนระดับระบบ (OS Notification Permissions)"</p>
-                </div>
-              </div>
-
-              <div className="space-y-4 text-xs text-zinc-400 leading-relaxed font-sans bg-zinc-900/40 p-4 rounded-xl border border-zinc-850/60 mb-5 text-left">
-                <p className="font-semibold text-zinc-300 flex items-center gap-1.5 border-b border-zinc-900 pb-1.5">
-                  💡 ปัญหาที่มักพบในมือถือ / กรอบรายงาน:
-                </p>
-                <ul className="space-y-2 list-disc list-inside">
-                  <li>
-                    <strong className="text-zinc-200">เมื่อเล่นในแอปมือถือ (เช่น LINE, Facebook Webview, iFrame พรีวิว):</strong> แอปเหล่านี้จะ <span className="text-amber-400">บล็อกการแสดงป๊อปอัปให้สิทธิ์</span> ทำให้ไม่มีขึ้นปุ่มให้อนุญาตสิทธิ์แจ้งเตือน
-                  </li>
-                  <li>
-                    <strong className="text-zinc-200">บน iOS Safari (iPhone / iPad):</strong> Apple บังคับให้ท่านต้องบันทึกเป็นเว็บโฮม <span className="text-emerald-400">"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</span> เป็นแอพ PWA ก่อน ป๊อปอัปขอสิทธิ์จึงจะปรากฏตัว
-                  </li>
-                  <li>
-                    <strong className="text-zinc-200">แก้ไขได้ทันที:</strong> แนะนำให้เปิดในแท็บแยกปกติ เพื่อเปิดระบบป๊อปอัปและสิทธิ์บริการพื้นหลังอย่างปลอดภัย
-                  </li>
-                </ul>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowIframeWarningModal(false);
-                    // Force state active so they still benefit from ambient UI
-                    showToast('เปิดใช้ระบบแจ้งเตือนแบบในระบบ (In-app Live alerts) เฝ้าหน้าจอนี้ได้ทันที! 🔊', 'success');
-                  }}
-                  className="w-full sm:w-1/2 py-2.5 px-4 rounded-xl border border-zinc-850 hover:bg-zinc-900 text-zinc-400 hover:text-white text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  ใช้แจ้งเตือนในตัว (In-App)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowIframeWarningModal(false);
-                    try {
-                      window.open(window.location.href, '_blank');
-                    } catch (e) {
-                      showToast('ไม่สามารถเปิดหน้าต่างใหม่ได้โดยอัตโนมัติ กรุณาคัดลอกลิงก์เปิดเอง', 'error');
-                    }
-                  }}
-                  className="w-full sm:w-1/2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black border-amber-500 text-xs font-bold cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-1.5"
-                >
-                  เปิดหน้านอกแท็บใหม่ 🚀
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
     </div>
   );
