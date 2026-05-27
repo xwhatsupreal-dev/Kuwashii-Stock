@@ -1297,6 +1297,7 @@ export default function App() {
                   onQuickQuantityChange={handleQuickQuantityChange}
                   onInquire={(it) => setInquiringItem(it)}
                   onTogglePin={handleTogglePin}
+                  onShareToAI={handleShareToAI}
                 />
               ))}
             </AnimatePresence>
