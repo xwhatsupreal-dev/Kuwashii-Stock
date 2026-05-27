@@ -824,26 +824,43 @@ export default function App() {
                   saveNotifConfig({ ...notifConfig, enabled: val });
                   
                   if (val) {
-                    showToast('เปิดคลงแจ้งเตือนระบบ: กรุณากด "อนุญาต" (Allow) หากมีป๊อปอัปให้สิทธิ์เพื่อรับแจ้งเตือนนอกบราวเซอร์ได้! 🔔', 'info');
                     playChime('success');
                     
                     if ('Notification' in window) {
+                      showToast('เปิดระบบแจ้งเตือนคลัง: กรุณากด "อนุญาต" (Allow) หากมีป๊อปอัปสิทธิ์ระดับระบบเด้งขึ้นมา! 🔔', 'info');
                       try {
-                        const permission = await Notification.requestPermission();
-                        if (permission === 'granted') {
-                          showToast('เปิดใช้ระบบแจ้งเตือนระดับวินโดว์สำเร็จแล้ว! บราวเซอร์จะเด้งแม้พับหน้าจออยู่ 🚀', 'success');
-                          new Notification('คลังสินค้า Live Alerts 🔔', {
-                            body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
-                          });
+                        // Resilient request permission (Promise or Callback approach)
+                        const requestPromise = Notification.requestPermission();
+                        if (requestPromise && typeof requestPromise.then === 'function') {
+                          const permission = await requestPromise;
+                          if (permission === 'granted') {
+                            showToast('เปิดใช้การแจ้งเตือนนอกบราวเซอร์สำเร็จแล้ว! ระบบจะแชร์ผลแม่นยำแม้พับหน้าจอ 🚀', 'success');
+                            new Notification('คลังสินค้า Live Alerts 🔔', {
+                              body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
+                              tag: 'aotr-welcome-alert'
+                            });
+                          } else if (permission === 'denied') {
+                            showToast('สิทธิ์ถูกปฏิเสธ บราวเซอร์จะเปลี่ยนมาใช้การเปิดเสียงเตือนและสิทธิ์ในบราวเซอร์แทน 💡', 'info');
+                          }
                         } else {
-                          showToast('สิทธิ์แจ้งเตือนระดับวินโดว์ไม่ถูกต้อง บราวเซอร์จะแจ้งเตือนเสริมเป็นแผงควบคุมในหน้าเว็ปแทน', 'error');
+                          // Callback fallback for older iOS Safari/Android WebViews
+                          Notification.requestPermission((permission) => {
+                            if (permission === 'granted') {
+                              showToast('เปิดระบบสิทธิ์แจ้งเตือนสำหรับมือถือ/บราวเซอร์สำเร็จแล้ว! 🚀', 'success');
+                            }
+                          });
                         }
                       } catch (err) {
                         console.warn("Notification request permission error:", err);
+                        // Fallback message
+                        showToast('เปิดการควบคุมแจ้งเตือนผ่านเสียงและป๊อปอัปแบบแมนนวลเสร็จสิ้น 🎵', 'success');
                       }
+                    } else {
+                      // Native notifications not supported (iOS Safari outside PWA or inside LINE, Facebook webviews)
+                      showToast('เปิดโหมดแจ้งเตือนสำรอง: มีเสียงเอฟเฟกต์และกล่องรายงานแบบไลฟ์สตรีม 🔊', 'success');
                     }
                   } else {
-                    showToast('ปิดรายงานการแจ้งเตือนคลังชั่วคราว', 'info');
+                    showToast('ปิดระบบเตือนประคองแบบเรียลไทม์เรียบร้อย', 'info');
                   }
                 }}
                 className={`py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 border cursor-pointer flex items-center gap-1.5 ${
@@ -910,6 +927,16 @@ export default function App() {
               </span>
             </label>
           </div>
+
+          {/* Mobile Web & WebView Helper Info Banner */}
+          {notifConfig.enabled && (
+            <div className="bg-zinc-950/45 px-4 py-2 text-[10px] text-zinc-450 font-sans border-b border-zinc-900/40 flex items-center gap-2">
+              <span className="text-amber-500 animate-pulse shrink-0">💡</span>
+              <span>
+                <strong>แจ้งเตือนบนมือถือ/แท็บเล็ต:</strong> หากไม่พบป๊อปอัปให้กดอนุญาต (จำกัดบน iOS/LINE/FB) หน้าเว็บจะชดเชยให้ด้วย <strong className="text-zinc-300">เสียงแจ้งเตือน (Chime) และประดับกล่องบับเบิ้ลสดด้านบน</strong> ให้อัตโนมัติเมื่อท่านเปิดหน้าจอนี้ค้างไว้!
+              </span>
+            </div>
+          )}
 
           {/* Active Alerts List Container representation */}
           <div className="p-4 bg-zinc-950/20 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
