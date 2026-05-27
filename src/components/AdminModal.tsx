@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Save, Upload, Link, AlertCircle, Sparkles, Image as ImageIcon, Package, Coins } from 'lucide-react';
+import { X, Save, Upload, Link, AlertCircle, Sparkles, Image as ImageIcon, Package, Coins, Clock } from 'lucide-react';
 import { StockItem } from '../types';
 
 interface AdminModalProps {
@@ -29,6 +29,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [category, setCategory] = useState<StockItem['category']>('Serum');
   const [rarity, setRarity] = useState<StockItem['rarity']>('Common');
   const [quantity, setQuantity] = useState(1);
+  const [initialQuantity, setInitialQuantity] = useState<number | string>('');
+  const [piecesPerUnit, setPiecesPerUnit] = useState<number | string>('');
   const [price, setPrice] = useState(10);
   const [description, setDescription] = useState('');
   const [isPinned, setIsPinned] = useState(false);
@@ -48,6 +50,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setCategory(editingItem.category);
       setRarity(editingItem.rarity);
       setQuantity(editingItem.quantity);
+      setInitialQuantity(editingItem.initialQuantity !== undefined ? editingItem.initialQuantity : editingItem.quantity);
+      setPiecesPerUnit(editingItem.piecesPerUnit !== undefined ? editingItem.piecesPerUnit : '');
       setPrice(editingItem.price);
       setDescription(editingItem.description);
       setIsPinned(!!editingItem.isPinned);
@@ -69,6 +73,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setCategory('Serum');
       setRarity('Common');
       setQuantity(1);
+      setInitialQuantity('');
+      setPiecesPerUnit('');
       setPrice(10);
       setDescription('');
       setIsPinned(false);
@@ -148,12 +154,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       finalImageUrl = uploadBase64;
     }
 
+    const currentQty = quantity;
+    const initQty = typeof initialQuantity === 'number' ? initialQuantity : parseInt(initialQuantity as string, 10);
+    const finalInitialQuantity = (!isNaN(initQty) && initQty >= currentQty) ? initQty : currentQty;
+
+    const pPerUnit = typeof piecesPerUnit === 'number' ? piecesPerUnit : parseInt(piecesPerUnit as string, 10);
+    const finalPiecesPerUnit = (!isNaN(pPerUnit) && pPerUnit > 0) ? pPerUnit : undefined;
+
     onSave({
       id: editingItem ? editingItem.id : `aotr-${Date.now()}`,
       name: name.trim(),
       category,
       rarity,
       quantity,
+      initialQuantity: finalInitialQuantity,
+      piecesPerUnit: finalPiecesPerUnit,
       price,
       description: description.trim(),
       imageUrl: finalImageUrl || undefined,
@@ -281,27 +296,57 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </select>
             </div>
 
-            {/* Quantity and Price row */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Quantity, Initial Quantity, Pieces per pack, and Price row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>จำนวนสิ่งของ (Quantity)</span>
+                  <Package className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                  <span>เหลือในสต๊อก (สต๊อก)</span>
                 </label>
                 <input
                   type="number"
                   min="0"
                   value={quantity}
                   onChange={(e) => setQuantity(parseInt(e.target.value, 10) || 0)}
-                  className="w-full bg-zinc-900 border border-zinc-850 text-zinc-100 px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all font-mono font-medium"
+                  className="w-full bg-zinc-900 border border-zinc-850 text-emerald-400 px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all font-mono font-bold"
                 />
                 {errors.quantity && <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>}
               </div>
 
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>จำนวนแรกรวม</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="ปล่อยว่างเพื่อเท่าคงเหลือ"
+                  value={initialQuantity}
+                  onChange={(e) => setInitialQuantity(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-850 text-zinc-200 px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all font-mono font-medium placeholder:text-zinc-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>จำนวนชิ้นต่อชุด</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="เช่น 360 ชิ้นต่อ 1 สต๊อก"
+                  value={piecesPerUnit}
+                  onChange={(e) => setPiecesPerUnit(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-850 text-amber-400 px-3 py-2 rounded-xl text-sm focus:outline-none focus:border-amber-500 transition-all font-mono font-medium placeholder:text-zinc-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 block mb-1.5 font-sans flex items-center gap-1.5">
                   <Coins className="w-3.5 h-3.5 text-yellow-500" />
-                  <span>ราคาพาร์ทบาท (Price ฿)</span>
+                  <span>ราคาบาทต่อชิ้น/ชุด (Price ฿)</span>
                 </label>
                 <input
                   type="number"
@@ -313,6 +358,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 {errors.price && <p className="text-xs text-red-500 mt-1">{errors.price}</p>}
               </div>
             </div>
+
+            {/* Live Calculation Preview Block */}
+            {(() => {
+              const pCount = piecesPerUnit ? (parseInt(piecesPerUnit as string, 10) || 1) : 1;
+              const totalItems = quantity * pCount;
+              if (pCount > 1) {
+                return (
+                  <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="text-xs text-amber-300 font-medium">💡 คำนวณคลังเสมือนจริง:</span>
+                    <span className="text-xs font-mono text-zinc-300">
+                      ได้สินค้า <strong className="text-amber-400 font-extrabold">{pCount}</strong> ชิ้นต่อชุด × สต๊อกมี <strong className="text-emerald-400 font-extrabold">{quantity}</strong> ชุด = จะมีของข้างในรวมทั้งหมด <strong className="text-white text-sm bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800 font-extrabold">{totalItems} ชิ้น</strong>
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Description textarea */}
             <div>

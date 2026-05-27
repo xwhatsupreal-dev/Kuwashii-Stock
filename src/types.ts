@@ -4,6 +4,7 @@ export interface StockItem {
   category: 'Serum' | 'Bloodline' | 'Equipment' | 'Artifact' | 'Scroll/Key' | 'Perk' | 'Other';
   rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
   quantity: number;
+  initialQuantity?: number;
   price: number; // in Thai Baht
   description: string;
   imageUrl?: string;

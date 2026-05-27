@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Shield,
@@ -26,7 +26,13 @@ import {
   Copy,
   Clock,
   MessageCircle,
-  Flame
+  Flame,
+  Bell,
+  BellRing,
+  BellOff,
+  Volume2,
+  VolumeX,
+  Settings
 } from 'lucide-react';
 
 import { StockItem, CategoryFilter, RarityFilter, StockStatusFilter } from './types';
@@ -66,6 +72,169 @@ export default function App() {
 
   // Floating notifications/toast
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  // --- Notifications Configuration ---
+  const [notifConfig, setNotifConfig] = useState(() => {
+    const saved = localStorage.getItem('AOTR_NOTIF_CONFIG_V1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // use default fallback
+      }
+    }
+    return {
+      enabled: false,        // ปิดการแจ้งเตือนเป็นค่าเริ่มต้นตามที่ผู้ใช้ร้องขอ
+      notifyNewStock: true,  // สต็อกเพิ่มใหม่
+      notifyLowStock: true,  // ใกล้หมด
+      notifyPopular: true,   // ยอดนิยม
+      playAlertSound: true,  // เล่นเสียงแจ้งเตือน
+    };
+  });
+
+  const saveNotifConfig = (newConfig: typeof notifConfig) => {
+    setNotifConfig(newConfig);
+    localStorage.setItem('AOTR_NOTIF_CONFIG_V1', JSON.stringify(newConfig));
+  };
+
+  const playChime = (type: 'success' | 'warning' | 'info') => {
+    if (!notifConfig.playAlertSound) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (type === 'success') {
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.45);
+      } else if (type === 'warning') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.setValueAtTime(392, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+      } else {
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.10, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+      }
+    } catch (e) {
+      // ignore context auto play warning
+    }
+  };
+
+  const sendSystemNotification = (title: string, body: string, iconUrl?: string) => {
+    if (!notifConfig.enabled) return;
+    
+    // In-app visual backup
+    showToast(`${title} - ${body}`, 'info');
+
+    // System Native OS desktop notifications (works even when user is on another window or tab minimized)
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body,
+          icon: iconUrl || undefined,
+          tag: 'aotr-stock-alert',
+        });
+      } catch (e) {
+        console.warn("Browser native Notification API error:", e);
+      }
+    }
+  };
+
+  const prevItemsRef = useRef<StockItem[]>([]);
+
+  useEffect(() => {
+    // If notifications are disabled, keep current state matched to prevent alerting storm as soon as user enables it
+    if (!notifConfig.enabled) {
+      prevItemsRef.current = items;
+      return;
+    }
+
+    // Skip alerting during cold-start or initial load
+    if (prevItemsRef.current.length === 0) {
+      prevItemsRef.current = items;
+      return;
+    }
+
+    // Inspect each item comparing to previous version
+    items.forEach((newItem) => {
+      const oldItem = prevItemsRef.current.find((it) => it.id === newItem.id);
+
+      if (!oldItem) {
+        // CASE 1: Brand new item registered in database
+        if (notifConfig.notifyNewStock) {
+          sendSystemNotification(
+            '📦 สินค้าใหม่เข้าคลัง!',
+            `เพิ่ม "${newItem.name}" (${newItem.category}) เข้าสู่ระบบจำหน่ายเรียบร้อย!`,
+            newItem.imageUrl
+          );
+        }
+        return;
+      }
+
+      // CASE 2: Quantities changed
+      if (oldItem.quantity !== newItem.quantity) {
+        const isIncreased = newItem.quantity > oldItem.quantity;
+        const isDecreased = newItem.quantity < oldItem.quantity;
+
+        // restocked
+        if (isIncreased && notifConfig.notifyNewStock) {
+          sendSystemNotification(
+            '📥 อัปเดตสต๊อกเพิ่ม!',
+            `"${newItem.name}" (${newItem.category}) เพิ่งถูกเติมสินค้าเข้าไปเป็น ${newItem.quantity} ชุดพร้อมส่ง!`,
+            newItem.imageUrl
+          );
+        }
+
+        // low stock warning (between 1 and 5)
+        if (isDecreased && newItem.quantity <= 5 && newItem.quantity > 0 && notifConfig.notifyLowStock) {
+          sendSystemNotification(
+            '⚠️ ของใกล้หมดด่วน!',
+            `"${newItem.name}" ถูกจองออเดอร์ ตอนนี้เหลือสต๊อกเพียง ${newItem.quantity} ชุดในระบบ!`,
+            newItem.imageUrl
+          );
+        }
+
+        // completely depleted
+        if (isDecreased && newItem.quantity === 0 && notifConfig.notifyLowStock) {
+          sendSystemNotification(
+            '❌ ของหมดคลังชั่วคราว!',
+            `"${newItem.name}" สินค้าหมดเกลี้ยงสต๊อกแล้ว 0 ชุด ทักให้แอดมินเติมด่วน!`,
+            newItem.imageUrl
+          );
+        }
+      }
+
+      // CASE 3: Registered as trending high rarity target
+      const oldIsPopular = !!oldItem.isPinned || !!oldItem.isPopular || oldItem.rarity === 'Mythic' || oldItem.rarity === 'Legendary';
+      const newIsPopular = !!newItem.isPinned || !!newItem.isPopular || newItem.rarity === 'Mythic' || newItem.rarity === 'Legendary';
+      if (!oldIsPopular && newIsPopular && notifConfig.notifyPopular) {
+        sendSystemNotification(
+          '⭐ แนะนำไอเทมแรร์เด่น!',
+          `"${newItem.name}" (${newItem.rarity}) ได้รับความนิยมสูง/ติดปักหมุดแนะนำใหม่ มอนิเตอร์ด่วน!`,
+          newItem.imageUrl
+        );
+      }
+    });
+
+    prevItemsRef.current = items;
+  }, [items, notifConfig]);
 
   // Load and save localStorage / Firebase
   useEffect(() => {
@@ -183,6 +352,9 @@ export default function App() {
     const updated: StockItem = {
       ...target,
       quantity: nextQty,
+      initialQuantity: target.initialQuantity !== undefined 
+        ? Math.max(target.initialQuantity, nextQty)
+        : nextQty,
       updatedAt: new Date().toISOString(),
     };
 
@@ -192,6 +364,13 @@ export default function App() {
     try {
       await saveFirebaseItem(updated);
       showToast('อัปเดตจำนวนสต็อกเรียบร้อย!', 'success');
+      if (nextQty <= 5 && nextQty < target.quantity) {
+        playChime('warning');
+      } else if (nextQty > target.quantity) {
+        playChime('success');
+      } else {
+        playChime('info');
+      }
     } catch (e) {
       showToast('บันทึกสต็อกลง Firebase ไม่สำเร็จ!', 'error');
     }
@@ -603,6 +782,279 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Live Notification Center */}
+        <section className="mb-8 bg-zinc-900/10 border border-zinc-900 rounded-2xl overflow-hidden shadow-xl">
+          {/* Header Bar */}
+          <div className="bg-zinc-950/80 px-4 py-3.5 border-b border-zinc-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-1.5 rounded-xl border transition-all ${notifConfig.enabled ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}>
+                {notifConfig.enabled ? <BellRing className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>กระดิ่งแจ้งเตือนคลังสินค้า (Stock Live Alerts)</span>
+                </h2>
+                <p className="text-[10px] text-zinc-500">มอนิเตอร์ระดับความจุสต็อก, การเติมสินค้าและยอดฮิตสินค้าแรร์ในระบบ</p>
+              </div>
+            </div>
+
+            {/* Quick Master Switches */}
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              {/* Sound indicator switch */}
+              <button
+                type="button"
+                onClick={() => saveNotifConfig({ ...notifConfig, playAlertSound: !notifConfig.playAlertSound })}
+                className={`p-1.5 rounded-lg border text-[10px] items-center gap-1.5 cursor-pointer transition-all flex ${
+                  notifConfig.playAlertSound 
+                    ? 'bg-zinc-900 border-zinc-850 text-zinc-350 hover:bg-zinc-850' 
+                    : 'bg-zinc-950 border-zinc-900 text-zinc-600'
+                }`}
+                title={notifConfig.playAlertSound ? "ปิดเสียงแจ้งเตือน" : "เปิดเสียงแจ้งเตือน"}
+              >
+                {notifConfig.playAlertSound ? <Volume2 className="w-3.5 h-3.5 text-amber-500" /> : <VolumeX className="w-3.5 h-3.5" />}
+                <span className="hidden xs:inline">{notifConfig.playAlertSound ? 'เปิดเอฟเฟกต์เสียง' : 'ปิดเสียงแจ้งเตือน'}</span>
+              </button>
+
+              {/* Master push notification switch */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const val = !notifConfig.enabled;
+                  saveNotifConfig({ ...notifConfig, enabled: val });
+                  
+                  if (val) {
+                    showToast('เปิดคลงแจ้งเตือนระบบ: กรุณากด "อนุญาต" (Allow) หากมีป๊อปอัปให้สิทธิ์เพื่อรับแจ้งเตือนนอกบราวเซอร์ได้! 🔔', 'info');
+                    playChime('success');
+                    
+                    if ('Notification' in window) {
+                      try {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted') {
+                          showToast('เปิดใช้ระบบแจ้งเตือนระดับวินโดว์สำเร็จแล้ว! บราวเซอร์จะเด้งแม้พับหน้าจออยู่ 🚀', 'success');
+                          new Notification('คลังสินค้า Live Alerts 🔔', {
+                            body: 'เปิดแรลไทม์มอนิเตอร์ระดับระบบเสร็จสิ้น! หากมีการเติมสต็อกหรือสินค้าเหลือต่ำกว่า 5 คุณจะได้รับการแจ้งเตือนทันที',
+                          });
+                        } else {
+                          showToast('สิทธิ์แจ้งเตือนระดับวินโดว์ไม่ถูกต้อง บราวเซอร์จะแจ้งเตือนเสริมเป็นแผงควบคุมในหน้าเว็ปแทน', 'error');
+                        }
+                      } catch (err) {
+                        console.warn("Notification request permission error:", err);
+                      }
+                    }
+                  } else {
+                    showToast('ปิดรายงานการแจ้งเตือนคลังชั่วคราว', 'info');
+                  }
+                }}
+                className={`py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 border cursor-pointer flex items-center gap-1.5 ${
+                  notifConfig.enabled
+                    ? 'bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 font-extrabold shadow-md shadow-emerald-950/25'
+                    : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <div className={`w-2 h-2 rounded-full ${notifConfig.enabled ? 'bg-black animate-ping' : 'bg-zinc-600'}`} />
+                <span>{notifConfig.enabled ? 'เปิดบริการแจ้งเตือน' : 'ปิดการแจ้งเตือน'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-Filters / Settings Switch Center */}
+          <div className="bg-zinc-950/30 px-4 py-3 border-b border-zinc-900 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-zinc-400">
+            <span className="font-semibold text-zinc-500 font-sans flex items-center gap-1"><Settings className="w-3 h-3" /> ตั้งค่าแจ้งเตือนฟิลเตอร์:</span>
+            
+            <label className="flex items-center gap-2 cursor-pointer group select-none">
+              <input
+                type="checkbox"
+                disabled={!notifConfig.enabled}
+                checked={notifConfig.notifyNewStock}
+                onChange={(e) => {
+                  saveNotifConfig({ ...notifConfig, notifyNewStock: e.target.checked });
+                  if (e.target.checked) playChime('info');
+                }}
+                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
+              />
+              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyNewStock ? 'text-zinc-200 font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
+                📦 สต็อกเพิ่มใหม่ (Fully Restocked)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer group select-none">
+              <input
+                type="checkbox"
+                disabled={!notifConfig.enabled}
+                checked={notifConfig.notifyLowStock}
+                onChange={(e) => {
+                  saveNotifConfig({ ...notifConfig, notifyLowStock: e.target.checked });
+                  if (e.target.checked) playChime('warning');
+                }}
+                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
+              />
+              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyLowStock ? 'text-white font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
+                ⚠️ สต็อกใกล้หมด (⚠️ ต่ำกว่า 5 ชิ้น)
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer group select-none">
+              <input
+                type="checkbox"
+                disabled={!notifConfig.enabled}
+                checked={notifConfig.notifyPopular}
+                onChange={(e) => {
+                  saveNotifConfig({ ...notifConfig, notifyPopular: e.target.checked });
+                  if (e.target.checked) playChime('info');
+                }}
+                className="accent-amber-500 rounded border-zinc-800 bg-zinc-950 focus:ring-amber-500 disabled:opacity-40"
+              />
+              <span className={`transition-colors font-medium ${!notifConfig.enabled ? 'text-zinc-650' : notifConfig.notifyPopular ? 'text-amber-400 font-semibold' : 'text-zinc-500 group-hover:text-zinc-450'}`}>
+                ⭐ ตัวตึงยอดนิยม / ระดับความหายากสูง
+              </span>
+            </label>
+          </div>
+
+          {/* Active Alerts List Container representation */}
+          <div className="p-4 bg-zinc-950/20 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800">
+            {!notifConfig.enabled ? (
+              <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center justify-center gap-2 font-sans">
+                <BellOff className="w-7 h-7 text-zinc-700 block" />
+                <p className="font-semibold text-zinc-400">ปิดการทำงานของศูนย์แจ้งเตือนเรียลไทม์ไว้</p>
+                <p className="text-[10px] text-zinc-600">คุณสามารถปรับสไลด์หรือเปิดใช้งานแจ้งเตือนที่ปุ่ม "เปิดบริการแจ้งเตือน" เพื่อเฝ้าติดตามอีกครั้ง</p>
+              </div>
+            ) : (() => {
+              // Dynamically scan items to build active alerts based on rules
+              const activeAlerts: {
+                id: string;
+                itemId: string;
+                type: 'new-stock' | 'low-stock' | 'popular';
+                title: string;
+                message: string;
+                item: StockItem;
+              }[] = [];
+
+              items.forEach((item) => {
+                // Low stock alerting: quantity between 1 and 5
+                const isLow = item.quantity > 0 && item.quantity <= 5;
+                if (isLow && notifConfig.notifyLowStock) {
+                  activeAlerts.push({
+                    id: `alert-low-${item.id}`,
+                    itemId: item.id,
+                    type: 'low-stock',
+                    title: 'คลังใกล้หมด!',
+                    message: `⚠️ ด่วน! "${item.name}" เหลือคลังในระบบเพียง ${item.quantity} ชิ้นสุดท้ายเท่านั้น!`,
+                    item,
+                  });
+                }
+
+                // New restock alerting: quantity is full or fully capped
+                const isNew = item.quantity > 0 && item.initialQuantity !== undefined && item.quantity >= item.initialQuantity;
+                if (isNew && notifConfig.notifyNewStock) {
+                  activeAlerts.push({
+                    id: `alert-new-${item.id}`,
+                    itemId: item.id,
+                    type: 'new-stock',
+                    title: 'สต็อกเติมเพิ่มใหม่!',
+                    message: `📦 สำรองเต็มร้อย! "${item.name}" ได้รับการเติมสต็อกพร้อมส่งสูงสุดแล้ว (${item.quantity} ชุด)`,
+                    item,
+                  });
+                }
+
+                // Popularity alerting: includes Pinned, Popular stats, or very high end rarity
+                const isPub = !!item.isPinned || !!item.isPopular || item.rarity === 'Mythic' || item.rarity === 'Legendary';
+                if (isPub && notifConfig.notifyPopular) {
+                  // Safeguard: only add if not already marked low stock to keep dashboard fresh
+                  if (!activeAlerts.some(a => a.id === `alert-low-${item.id}`)) {
+                    activeAlerts.push({
+                      id: `alert-pub-${item.id}`,
+                      itemId: item.id,
+                      type: 'popular',
+                      title: 'ไอเทมแรร์ยอดนิยม!',
+                      message: `⭐ ของดีระดับแชมเปี้ยน! "${item.name}" (${item.rarity}) มียอดขายสูงสุด สต๊อกตอนนี้: ${item.quantity} ชิ้น`,
+                      item,
+                    });
+                  }
+                }
+              });
+
+              if (activeAlerts.length === 0) {
+                return (
+                  <div className="py-6 text-center text-zinc-500 text-xs flex flex-col items-center justify-center gap-1.5 font-sans select-none">
+                    <Sparkles className="w-4 h-4 text-amber-500/30 animate-pulse block" />
+                    <p className="font-semibold text-zinc-400">คลังเซฟตี้เรียบร้อย ไม่มีสต๊อกติดสัญญาณเสด็จในขณะนี้</p>
+                    <p className="text-[10px] text-zinc-650">เมื่อระดับของคลังไอเทมเปลี่ยนแปลง อลาร์มความเสี่ยงจะปรากฏขึ้นที่แผงควบคุมนี้ทันที</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {activeAlerts.map((alt) => {
+                    let typeClass = '';
+                    let dotColor = '';
+
+                    if (alt.type === 'low-stock') {
+                      typeClass = 'bg-red-500/5 hover:bg-red-500/10 border-red-950/40 text-red-300';
+                      dotColor = '#ef4444';
+                    } else if (alt.type === 'new-stock') {
+                      typeClass = 'bg-emerald-500/5 hover:bg-emerald-500/10 border-emerald-950/40 text-emerald-300';
+                      dotColor = '#10b981';
+                    } else {
+                      typeClass = 'bg-amber-500/5 hover:bg-amber-500/10 border-amber-950/30 text-amber-300';
+                      dotColor = '#f59e0b';
+                    }
+
+                    return (
+                      <motion.div
+                        key={alt.id}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${typeClass}`}
+                      >
+                        {/* Avatar Item miniature preview */}
+                        <div className="w-9 h-9 bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {alt.item.imageUrl ? (
+                            <img src={alt.item.imageUrl} alt={alt.item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                          ) : (
+                            <Package className="w-4 h-4 text-zinc-600" />
+                          )}
+                        </div>
+
+                        {/* Title and Message */}
+                        <div className="flex-1 min-w-0 pr-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full animate-ping shrink-0" style={{ backgroundColor: dotColor }} />
+                            <span className="font-sans text-[9px] font-black uppercase tracking-wider">{alt.title}</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 font-sans truncate leading-normal" title={alt.message}>
+                            {alt.message}
+                          </p>
+                        </div>
+
+                        {/* Fast Targeted Scrolling & Inquiry Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearch(alt.item.name);
+                            const itemCardElement = document.getElementById(`item-card-${alt.item.id}`);
+                            if (itemCardElement) {
+                              itemCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              // Highlight block or open purchase dialog right away
+                              setInquiringItem(alt.item);
+                            } else {
+                              // secondary fallback
+                              window.scrollTo({ top: 450, behavior: 'smooth' });
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-950 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900 text-white font-sans text-[10px] font-bold shrink-0 transition-transform active:scale-[0.97] cursor-pointer"
+                        >
+                          เล็งสั่งซื้อ 🎯
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
 
         {/* Search and Filters Hub */}
         <section className="bg-zinc-900/20 border border-zinc-900 p-5 sm:p-6 rounded-2xl mb-8 space-y-5">

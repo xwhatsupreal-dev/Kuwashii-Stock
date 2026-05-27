@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Edit2, Trash2, ShieldAlert, BadgeInfo, Coins, Package, Clock, ShoppingBag, Pin, Flame } from 'lucide-react';
+import { Edit2, Trash2, ShieldAlert, BadgeInfo, Coins, Package, Clock, ShoppingBag, Pin, Flame, Sparkles } from 'lucide-react';
 import { StockItem } from '../types';
 
 interface ItemCardProps {
@@ -239,19 +239,126 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         </p>
 
         {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-2 bg-zinc-900/40 p-2 rounded-lg border border-zinc-800/60 text-[10px] font-sans">
-          <div className="flex items-center gap-1.5 text-zinc-400">
-            <Package className="w-3.5 h-3.5 text-zinc-500" />
-            <span>สต๊อกคงเหลือ: </span>
-          </div>
-          <div className="text-right font-mono font-bold text-white">
-            {item.quantity === 0 ? (
-              <span className="text-red-400">หมดเกลี้ยง</span>
-            ) : (
-              <span>{item.quantity} ชิ้น</span>
-            )}
-          </div>
-        </div>
+        {(() => {
+          const initQty = item.initialQuantity && item.initialQuantity >= item.quantity ? item.initialQuantity : item.quantity;
+          const percentage = initQty > 0 ? (item.quantity / initQty) * 100 : 0;
+          const hasPieces = item.piecesPerUnit && item.piecesPerUnit > 1;
+
+          if (hasPieces) {
+            const pUnit = item.piecesPerUnit as number;
+            return (
+              <div className="space-y-2 bg-zinc-900/40 p-2.5 rounded-xl border border-zinc-950 text-[10px] font-sans">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Package className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>สต๊อกคลังสินค้า:</span>
+                  </div>
+                  <div className="text-right font-mono font-bold text-white">
+                    {item.quantity === 0 ? (
+                      <span className="text-red-400 font-extrabold text-xs">หมดคลัง</span>
+                    ) : item.initialQuantity && item.initialQuantity > item.quantity ? (
+                      <span className="text-zinc-300">
+                        <span className="text-emerald-450 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">{item.quantity}</span>
+                        <span className="text-zinc-500 font-normal mx-0.5">/</span>
+                        <span className="text-zinc-400">{item.initialQuantity}</span> ชุด
+                      </span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">{item.quantity} ชุด</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-zinc-900/45 pt-1.5 mt-1">
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>จำนวนของที่จะได้:</span>
+                  </div>
+                  <div className="text-right font-mono font-extrabold text-amber-400 text-xs">
+                    {pUnit} <span className="text-[9px] font-normal text-zinc-400">ชิ้นต่อชุด</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-zinc-900/45 pt-1.5 mt-1 bg-zinc-950/20 -mx-1 px-1 rounded-md">
+                  <div className="flex items-center gap-1.5 text-zinc-500">
+                    <Coins className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>รวมของทั้งหมดมี:</span>
+                  </div>
+                  <div className="text-right font-mono font-extrabold text-zinc-200">
+                    <span className="text-white text-xs font-black">{item.quantity * pUnit}</span> ชิ้น
+                  </div>
+                </div>
+
+                {/* Progress bar visual */}
+                {initQty > 0 && (
+                  <div className="space-y-1 pt-1.5 border-t border-zinc-900/45">
+                    <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden p-0.5 flex items-center border border-zinc-900/30">
+                      <div 
+                        className={`h-0.5 rounded-full transition-all duration-500 ${
+                          item.quantity === 0
+                            ? 'w-0'
+                            : item.quantity <= 1
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[8px] text-zinc-500 font-medium leading-none">
+                      <span>สถานะคลังสินค้า</span>
+                      <span className="font-mono font-bold text-zinc-400">{percentage.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-2 bg-zinc-900/40 p-2.5 rounded-xl border border-zinc-900/80 text-[10px] font-sans">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Package className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>สต๊อกคงเหลือ:</span>
+                </div>
+                <div className="text-right font-mono font-bold text-white">
+                  {item.quantity === 0 ? (
+                    <span className="text-red-400 font-extrabold">หมดเกลี้ยง</span>
+                  ) : item.initialQuantity && item.initialQuantity > item.quantity ? (
+                    <span className="text-zinc-300">
+                      <span className="text-emerald-400 font-bold">{item.quantity}</span>
+                      <span className="text-zinc-500 font-normal mx-0.5">/</span>
+                      <span className="text-zinc-400">{item.initialQuantity}</span> ชิ้น
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">{item.quantity} ชิ้น</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Progress bar visual */}
+              {initQty > 0 && (
+                <div className="space-y-1 pt-0.5">
+                  <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden p-0.5 flex items-center border border-zinc-900/30">
+                    <div 
+                      className={`h-0.5 rounded-full transition-all duration-500 ${
+                        item.quantity === 0
+                          ? 'w-0'
+                          : item.quantity <= 5
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[8px] text-zinc-500 font-medium">
+                    <span>สถานะคลังสินค้า</span>
+                    <span className="font-mono font-bold text-zinc-400">{percentage.toFixed(0)}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Bottom Action Section */}

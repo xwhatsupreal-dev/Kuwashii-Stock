@@ -21,18 +21,19 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
 
   if (!item) return null;
 
+  const hasPieces = item.piecesPerUnit && item.piecesPerUnit > 1;
+  const unitLabel = hasPieces ? 'ชุด' : 'ชิ้น';
+  const totalPiecesCount = quantity * (item.piecesPerUnit || 1);
+  const totalItemPiecesDetail = hasPieces ? `\n• ได้รับของจริงทั้งหมด: ${totalPiecesCount} ชิ้น (${item.piecesPerUnit} ชิ้นต่อชุด)` : '';
+
   const totalPrice = item.price * quantity;
 
   // Generate localized order templates
-  const purchaseMessage = `🛒 ต้องการซื้อไอเทมจากสต๊อก AOT Revolution
-━━━━━━━━━━━━━━━━━━━━━━
-• สินค้า: ${item.name} (${item.category})
-• ระดับความหายาก: ${item.rarity}
-• คำอธิบาย: ${item.description || '-'}
-• จำนวน: ${quantity} ชิ้น
-• ราคารวม: ฿${totalPrice.toLocaleString()} บาท (ชิ้นละ ฿${item.price.toLocaleString()} บาท)
-━━━━━━━━━━━━━━━━━━━━━━
-💬 ติดต่อผู้ดูแลร้าน (Kuwashii El) ทาง Facebook (m.me/@kuwashii) เพื่อส่งมอบของ!`;
+  const purchaseMessage = `🛒 [สั่งซื้อ] AOT Revolution Stock
+   • สินค้า: ${item.name} (${item.category} | ${item.rarity})
+   • จำนวน: ${quantity} ${unitLabel}${hasPieces ? ` (รวม ${totalPiecesCount} ชิ้น)` : ''}
+   • ราคารวม: ฿${totalPrice.toLocaleString()} บาท (${hasPieces ? 'ชุด' : 'ชิ้น'}ละ ฿${item.price.toLocaleString()} บาท)
+   💬 ติดต่อแอดมิน: Kuwashii El (m.me/kuwashii)`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(purchaseMessage);
@@ -67,15 +68,15 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative max-w-md w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-6 overflow-hidden shadow-2xl z-10"
+          className="relative max-w-sm w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 sm:p-5 overflow-hidden shadow-2xl z-10 max-h-[90vh] flex flex-col"
         >
           {/* Accent decoration */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-amber-500 to-purple-600" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-600 via-amber-500 to-purple-600" />
 
           {/* Header */}
-          <div className="flex items-center justify-between mb-4 mt-2">
-            <h3 className="font-display text-xl font-bold text-white flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-amber-500 animate-pulse" />
+          <div className="flex items-center justify-between mb-3 mt-1 flex-shrink-0">
+            <h3 className="font-display text-lg font-bold text-white flex items-center gap-2">
+              <ShoppingCart className="w-4.5 h-4.5 text-amber-500 animate-pulse" />
               <span>สรุปรายการสั่งซื้อ</span>
             </h3>
             <button
@@ -83,157 +84,180 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({ item, onClose }) => 
               className="p-1 text-zinc-500 hover:text-white rounded-lg hover:bg-zinc-900 transition-colors"
               id="btn-close-inquiry"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4.5 h-4.5" />
             </button>
           </div>
 
-          {/* Item details card preview */}
-          <div className="flex gap-4 p-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 mb-5">
-            <div className="w-20 h-20 bg-zinc-950 border border-zinc-850 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
-              {item.imageUrl ? (
-                <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-              ) : (
-                <ShoppingCart className="w-8 h-8 text-zinc-600" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border ${getRarityBadgeStyle(item.rarity)}`}>
-                  {item.rarity}
-                </span>
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{item.category}</span>
+          {/* Scrollable Content wrapper to prevent full-screen takeover on small viewports */}
+          <div className="overflow-y-auto space-y-3.5 pr-0.5 scrollbar-thin scrollbar-thumb-zinc-800 pb-1 flex-1">
+            {/* Item details card preview */}
+            <div className="flex gap-3 p-2.5 rounded-xl border border-zinc-900 bg-zinc-900/30">
+              <div className="w-14 h-14 bg-zinc-950 border border-zinc-850 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                ) : (
+                  <ShoppingCart className="w-6 h-6 text-zinc-650" />
+                )}
               </div>
-              <h4 className="font-display font-medium text-white text-base leading-tight">{item.name}</h4>
-              <p className="font-mono text-sm font-bold text-amber-400 mt-1">฿{item.price.toLocaleString()} / ชิ้น</p>
-              {item.description && (
-                <p className="text-[11px] text-zinc-400 mt-2 bg-zinc-950/60 p-2 rounded-lg border border-zinc-800/45 leading-relaxed max-h-20 overflow-y-auto break-words font-sans">
-                  <strong className="text-zinc-300">คำอธิบาย:</strong> {item.description}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Quantity Selector Slider & Buttons */}
-          <div className="space-y-4 mb-6">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400 font-sans">จำนวนชุดที่สั่งจ่าย:</span>
-              <div className="flex items-center gap-2.5 bg-zinc-900 border border-zinc-805 rounded-xl p-1">
-                <button
-                  type="button"
-                  disabled={quantity <= 1}
-                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center font-bold font-mono text-base text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                  id="btn-dec-inquiry-qty"
-                >
-                  -
-                </button>
-                <span className="w-10 text-center text-white font-mono font-bold text-base">{quantity}</span>
-                <button
-                  type="button"
-                  disabled={quantity >= item.quantity}
-                  onClick={() => setQuantity((prev) => Math.min(item.quantity, prev + 1))}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center font-bold font-mono text-base text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                  id="btn-inc-inquiry-qty"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Slider control */}
-            {item.quantity > 1 && (
-              <div className="space-y-1">
-                <input
-                  type="range"
-                  min="1"
-                  max={item.quantity}
-                  value={quantity}
-                  onChange={(e) => setQuantity(parseInt(e.target.value, 10))}
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none"
-                />
-                <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
-                  <span>1 ชิ้น</span>
-                  <span>สูงสุด {item.quantity} ชิ้น (ในคลัง)</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`px-1.5 py-0.5 text-[8px] font-bold uppercase rounded border ${getRarityBadgeStyle(item.rarity)}`}>
+                    {item.rarity}
+                  </span>
+                  <span className="text-[9px] text-zinc-550 font-bold uppercase tracking-wider">{item.category}</span>
                 </div>
+                <h4 className="font-display font-semibold text-white text-sm leading-snug truncate">{item.name}</h4>
+                <p className="font-mono text-xs font-bold text-amber-400 mt-0.5">
+                  ฿{item.price.toLocaleString()} / {hasPieces ? `ชุด (${item.piecesPerUnit} ชิ้น)` : 'ชิ้น'}
+                </p>
+              </div>
+            </div>
+
+            {/* Dedicated full item description wrapper */}
+            {item.description && (
+              <div className="bg-zinc-900/20 p-3 rounded-xl border border-zinc-900 text-xs leading-relaxed">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1 font-sans">📝 คำอธิบายสินค้า / รายละเอียด:</span>
+                <p className="text-zinc-200 whitespace-pre-wrap font-sans font-medium text-[11px] leading-relaxed break-words">
+                  {item.description}
+                </p>
               </div>
             )}
 
-            {/* Total price section */}
-            <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-950">
-              <div className="flex items-center gap-2">
-                <Coins className="w-4 h-4 text-yellow-500" />
-                <span className="text-sm font-sans text-zinc-400">ราคาทั้งสิ้น:</span>
+            {/* Quantity Selector Slider & Buttons */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-zinc-400 font-sans">
+                  {hasPieces ? 'จำนวนชุดที่ต้องการ:' : 'จำนวนชิ้นที่ต้องการ:'}
+                </span>
+                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-900 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    disabled={quantity <= 1}
+                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                    className="w-7 h-7 rounded-md flex items-center justify-center font-bold font-mono text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                    id="btn-dec-inquiry-qty"
+                  >
+                    -
+                  </button>
+                  <span className="w-12 text-center text-white font-mono font-bold text-xs">
+                    {quantity} <span className="text-[9px] text-zinc-450 font-normal">{unitLabel}</span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={quantity >= item.quantity}
+                    onClick={() => setQuantity((prev) => Math.min(item.quantity, prev + 1))}
+                    className="w-7 h-7 rounded-md flex items-center justify-center font-bold font-mono text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                    id="btn-inc-inquiry-qty"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-              <span className="font-mono text-xl font-black text-white">
-                ฿{totalPrice.toLocaleString()}
-              </span>
-            </div>
-          </div>
 
-          {/* Clipboard Message Copy Center */}
-          <div className="space-y-2 mb-6">
-            <span className="text-xs text-zinc-400 font-sans block mb-1">กล่องแชทข้อความสั่งซื้อด่วน (กดคัดลอกเพื่อส่งหาแอดมิน):</span>
-            <div className="relative">
-              <pre className="text-[11px] font-mono leading-relaxed bg-zinc-900 border border-zinc-850 p-3 rounded-xl text-zinc-300 whitespace-pre h-32 overflow-y-auto overflow-x-hidden scrollbar">
-                {purchaseMessage}
-              </pre>
-              <div className="absolute top-2.5 right-2.5">
+              {/* Slider control */}
+              {item.quantity > 1 && (
+                <div className="space-y-0.5">
+                  <input
+                    type="range"
+                    min="1"
+                    max={item.quantity}
+                    value={quantity}
+                    onChange={(e) => setQuantity(parseInt(e.target.value, 10))}
+                    className="w-full accent-amber-500 cursor-pointer h-1 bg-zinc-800 rounded-lg appearance-none"
+                  />
+                  <div className="flex justify-between text-[8px] text-zinc-550 font-mono">
+                    <span>1 {unitLabel}</span>
+                    <span>สูงสุด {item.quantity} {unitLabel} {hasPieces ? `(รวม ${item.quantity * (item.piecesPerUnit || 1)} ชิ้น)` : ''}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Live calculation preview during purchase */}
+              {hasPieces && (
+                <div className="bg-zinc-900/30 px-2 py-1.5 rounded-lg border border-zinc-905 text-[10px] flex justify-between items-center text-zinc-400 leading-none">
+                  <span>🎁 จะได้รับรวมเสมือนจริง:</span>
+                  <span className="font-mono font-bold text-amber-400">
+                    {quantity} ชุด × {item.piecesPerUnit} = <strong className="text-white font-black text-xs">{quantity * (item.piecesPerUnit || 1)} ชิ้น</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Total price section */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl border border-zinc-900 bg-zinc-950">
+                <div className="flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5 text-yellow-500" />
+                  <span className="text-xs font-sans text-zinc-450">ราคาทั้งสิ้น:</span>
+                </div>
+                <span className="font-mono text-base font-black text-white">
+                  ฿{totalPrice.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Clipboard Message Copy Center */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-zinc-450 font-sans block">กล่องแชทข้อความสั่งซื้อด่วน:</span>
+              <div className="relative">
+                <pre className="text-[10px] font-mono leading-relaxed bg-zinc-900 border border-zinc-900 py-2 px-2.5 rounded-lg text-zinc-350 whitespace-pre h-16 overflow-y-auto overflow-x-hidden scrollbar">
+                  {purchaseMessage}
+                </pre>
+                <div className="absolute top-1.5 right-1.5">
+                  <button
+                    onClick={handleCopy}
+                    className={`p-1.5 rounded border transition-all duration-350 cursor-pointer ${
+                      copied
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
+                        : 'bg-black border-zinc-800 text-zinc-450 hover:text-white hover:border-zinc-700 shadow-md'
+                    }`}
+                    id="btn-copy-msg"
+                    title="คัดลอกข้อความ"
+                  >
+                    {copied ? <Check className="w-3 h-3 animate-bounce" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Social connections & Action instructions */}
+            <div className="border-t border-zinc-900 pt-3 space-y-2.5 flex-shrink-0">
+              <div className="flex items-center justify-between text-[9px] text-zinc-550 leading-none">
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3 text-zinc-600" />
+                  <span>ผู้ดูแลร้าน: Kuwashii El</span>
+                </span>
+                <span>Facebook: <strong className="text-blue-400 font-mono">m.me/kuwashii</strong></span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleCopy}
-                  className={`p-2 rounded-lg border transition-all duration-350 cursor-pointer ${
+                  className={`py-1.5 px-3 rounded-lg font-bold text-[11px] transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                     copied
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                      : 'bg-black border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-650 shadow-md'
+                      ? 'bg-emerald-500 text-black border-emerald-500 hover:bg-emerald-400 shadow-lg shadow-emerald-500/10'
+                      : 'bg-white hover:bg-zinc-150 text-black border-white shadow-md active:scale-[0.98]'
                   }`}
-                  id="btn-copy-msg"
-                  title="คัดลอกข้อความ"
+                  id="btn-action-copy-buy"
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 animate-bounce" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? 'คัดลอกแล้ว!' : 'คัดลอกคำสั่ง'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open("https://m.me/kuwashii", "_blank");
+                  }}
+                  className="py-1.5 px-3 rounded-lg font-bold text-[11px] bg-zinc-900 hover:bg-zinc-850 text-zinc-350 hover:text-white border border-zinc-850 text-center transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  id="btn-join-facebook"
+                >
+                  <span>แชท Facebook</span>
+                  <ExternalLink className="w-3 h-3 text-zinc-500" />
                 </button>
               </div>
+              <p className="text-[9px] text-zinc-600 text-center font-sans">
+                *คัดลอกข้อความแชทแล้วทักไปแจ้งแอดมิน เพื่อส่งมอบและตัดสต๊อกของได้ทันที!
+              </p>
             </div>
-          </div>
-
-          {/* Social connections & Action instructions */}
-          <div className="border-t border-zinc-900 pt-4 space-y-3">
-            <div className="flex items-center justify-between text-xs text-zinc-500">
-              <span className="flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-zinc-600" />
-                <span>แอดมิน:</span>
-                <strong className="text-zinc-300">Kuwashii El</strong>
-              </span>
-              <span>Facebook: <strong className="text-blue-400 text-xs font-mono">m.me/@kuwashii</strong></span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleCopy}
-                className={`py-2 px-4 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  copied
-                    ? 'bg-emerald-500 text-black border-emerald-500 hover:bg-emerald-400 shadow-lg shadow-emerald-500/10'
-                    : 'bg-white hover:bg-zinc-100 text-black border-white shadow-lg active:scale-[0.98]'
-                }`}
-                id="btn-action-copy-buy"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'คัดลอกสำเร็จแล้ว' : 'คัดลอกข้อความสั่งซื้อ'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.open("https://m.me/kuwashii", "_blank");
-                }}
-                className="py-2 px-4 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 hover:text-white border border-zinc-800 text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                id="btn-join-facebook"
-              >
-                <span>หรือแชท Facebook</span>
-                <ExternalLink className="w-3 h-3 text-zinc-500" />
-              </button>
-            </div>
-            <p className="text-[10px] text-zinc-600 text-center font-sans mt-2">
-              *เมื่อคัดลอกข้อความแล้วสามารถส่งข้อความไปหาแอดมิน เพื่อทำเรื่องส่งมอบเกมพาส/ไอเทมให้คุณได้ทันที!
-            </p>
           </div>
         </motion.div>
       </div>
